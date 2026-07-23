@@ -1,0 +1,5080 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Momentum Rotation Workbench",
+    "description": "Weekly, manually-driven momentum strategy \u2014 decision & journaling workbench.",
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Api Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/holdings": {
+      "get": {
+        "tags": [
+          "holdings"
+        ],
+        "summary": "List Holdings",
+        "operationId": "list_holdings_api_holdings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Holding"
+                  },
+                  "type": "array",
+                  "title": "Response List Holdings Api Holdings Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "holdings"
+        ],
+        "summary": "Save Holdings",
+        "description": "Replace the whole ledger with the supplied rows.",
+        "operationId": "save_holdings_api_holdings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldingsSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Holding"
+                  },
+                  "type": "array",
+                  "title": "Response Save Holdings Api Holdings Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/holdings/summary": {
+      "get": {
+        "tags": [
+          "holdings"
+        ],
+        "summary": "Portfolio Summary",
+        "description": "Capital deployed, current market value and open risk across held positions.\n\n`refresh=true` re-pulls live prices instead of serving the cache.",
+        "operationId": "portfolio_summary_api_holdings_summary_get",
+        "parameters": [
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Refresh"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/holdings/lookup": {
+      "get": {
+        "tags": [
+          "holdings"
+        ],
+        "summary": "Lookup Symbol",
+        "description": "Auto-fill helper: sector, sleeve and last close for a ticker.",
+        "operationId": "lookup_symbol_api_holdings_lookup_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolLookup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/alt-assets": {
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "List Alt Assets",
+        "description": "Assets that RED-week capital can be parked in instead of idle cash.",
+        "operationId": "list_alt_assets_api_backtest_alt_assets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AltAssetOption"
+                  },
+                  "type": "array",
+                  "title": "Response List Alt Assets Api Backtest Alt Assets Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/index-coverage": {
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Index Coverage",
+        "description": "How far back each regime index can gate a run \u2014 shown before starting one.",
+        "operationId": "index_coverage_api_backtest_index_coverage_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IndexCoverage"
+                  },
+                  "type": "array",
+                  "title": "Response Index Coverage Api Backtest Index Coverage Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/universes": {
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "List Universes",
+        "operationId": "list_universes_api_backtest_universes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UniverseSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Universes Api Backtest Universes Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Build Universe",
+        "description": "Snapshot today's constituents of one or more NSE indices into a file.",
+        "operationId": "build_universe_api_backtest_universes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildUniverseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UniverseSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/universes/{universe_id}": {
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Get Universe",
+        "operationId": "get_universe_api_backtest_universes__universe_id__get",
+        "parameters": [
+          {
+            "name": "universe_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Universe Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UniverseSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Delete Universe",
+        "operationId": "delete_universe_api_backtest_universes__universe_id__delete",
+        "parameters": [
+          {
+            "name": "universe_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Universe Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Universe Api Backtest Universes  Universe Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/runs": {
+      "post": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Start Run",
+        "description": "Queue a run on a background thread; poll the record for progress.",
+        "operationId": "start_run_api_backtest_runs_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BacktestRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "List Runs",
+        "operationId": "list_runs_api_backtest_runs_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunRecord"
+                  },
+                  "title": "Response List Runs Api Backtest Runs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Get Run",
+        "operationId": "get_run_api_backtest_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Delete Run",
+        "operationId": "delete_run_api_backtest_runs__run_id__delete",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Run Api Backtest Runs  Run Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/runs/{run_id}/result": {
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Get Result",
+        "operationId": "get_result_api_backtest_runs__run_id__result_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/runs/{run_id}/cancel": {
+      "post": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Cancel Run",
+        "operationId": "cancel_run_api_backtest_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Cancel Run Api Backtest Runs  Run Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles": {
+      "get": {
+        "tags": [
+          "cycles"
+        ],
+        "summary": "List Cycles",
+        "operationId": "list_cycles_api_cycles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CycleSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Cycles Api Cycles Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "cycles"
+        ],
+        "summary": "Create Cycle",
+        "operationId": "create_cycle_api_cycles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateCycleRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current": {
+      "get": {
+        "tags": [
+          "cycles"
+        ],
+        "summary": "Get Current Cycle",
+        "operationId": "get_current_cycle_api_cycles_current_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "cycles"
+        ],
+        "summary": "Delete Current Cycle",
+        "description": "Permanently delete the current cycle file and its journal rows.",
+        "operationId": "delete_current_cycle_api_cycles_current_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Delete Current Cycle Api Cycles Current Delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/close": {
+      "post": {
+        "tags": [
+          "cycles"
+        ],
+        "summary": "Close Current Cycle",
+        "description": "Close the current cycle (finish or abandon) so a new one can start.",
+        "operationId": "close_current_cycle_api_cycles_current_close_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/{step_id}/reopen": {
+      "post": {
+        "tags": [
+          "cycles"
+        ],
+        "summary": "Reopen Step",
+        "description": "Go back to an earlier step to edit and re-run it; resets downstream steps.",
+        "operationId": "reopen_step_api_cycles_current_steps__step_id__reopen_post",
+        "parameters": [
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/{cycle_id}": {
+      "get": {
+        "tags": [
+          "cycles"
+        ],
+        "summary": "Get Cycle",
+        "operationId": "get_cycle_api_cycles__cycle_id__get",
+        "parameters": [
+          {
+            "name": "cycle_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cycle Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/regime-options": {
+      "get": {
+        "tags": [
+          "part-a"
+        ],
+        "summary": "Regime Options",
+        "description": "The selectable indices + filters for the Regime Gate dropdowns.",
+        "operationId": "regime_options_api_regime_options_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegimeOptions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-a/run": {
+      "post": {
+        "tags": [
+          "part-a"
+        ],
+        "summary": "Run Part A",
+        "description": "Fetch the chosen index -> apply the chosen filter -> RED/GREEN -> persist.\n\nIdempotent. A data/compute failure comes back as the Part A step in status\n`failed` with an `error` message (HTTP 200), not a 500.",
+        "operationId": "run_part_a_api_cycles_current_steps_part_a_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RegimeGateRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-a/advance": {
+      "post": {
+        "tags": [
+          "part-a"
+        ],
+        "summary": "Advance Part A",
+        "description": "User confirms review -> move current_step per the RED/GREEN branch.",
+        "operationId": "advance_part_a_api_cycles_current_steps_part_a_advance_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scanner/validate-formula": {
+      "post": {
+        "tags": [
+          "part-b"
+        ],
+        "summary": "Validate Formula",
+        "description": "Check a scoring formula without running it (for live UI validation).",
+        "operationId": "validate_formula_api_scanner_validate_formula_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormulaValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormulaValidateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/universe-options": {
+      "get": {
+        "tags": [
+          "part-b"
+        ],
+        "summary": "Universe Options",
+        "operationId": "universe_options_api_universe_options_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UniverseOptionOut"
+                  },
+                  "type": "array",
+                  "title": "Response Universe Options Api Universe Options Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/universe-sectors": {
+      "get": {
+        "tags": [
+          "part-b"
+        ],
+        "summary": "Universe Sectors",
+        "description": "Distinct sectors across the selected universes (union), for the Sector filter.",
+        "operationId": "universe_sectors_api_universe_sectors_get",
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [],
+              "title": "Ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Universe Sectors Api Universe Sectors Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-b/run": {
+      "post": {
+        "tags": [
+          "part-b"
+        ],
+        "summary": "Run Part B",
+        "description": "Compute the Jerald score across the universe. Failures land on the step (HTTP 200).",
+        "operationId": "run_part_b_api_cycles_current_steps_part_b_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PartBRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-b/advance": {
+      "post": {
+        "tags": [
+          "part-b"
+        ],
+        "summary": "Advance Part B",
+        "operationId": "advance_part_b_api_cycles_current_steps_part_b_advance_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-c/run": {
+      "post": {
+        "tags": [
+          "part-c"
+        ],
+        "summary": "Run Part C",
+        "description": "Audit ACTIVE holdings against the Jerald Score ranking. Preview only.",
+        "operationId": "run_part_c_api_cycles_current_steps_part_c_run_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-c/advance": {
+      "post": {
+        "tags": [
+          "part-c"
+        ],
+        "summary": "Advance Part C",
+        "description": "Commit: mark flagged holdings PENDING_EXIT, move to the veto steps.",
+        "operationId": "advance_part_c_api_cycles_current_steps_part_c_advance_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-d-fundamental/run": {
+      "post": {
+        "tags": [
+          "part-d"
+        ],
+        "summary": "Run Fundamental",
+        "description": "Evaluate ranks 1-15 (excluding holdings). Send edited assessments to re-evaluate.",
+        "operationId": "run_fundamental_api_cycles_current_steps_part_d_fundamental_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PartDFundamentalRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-d-fundamental/advance": {
+      "post": {
+        "tags": [
+          "part-d"
+        ],
+        "summary": "Advance Fundamental",
+        "operationId": "advance_fundamental_api_cycles_current_steps_part_d_fundamental_advance_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-d-technical/run": {
+      "post": {
+        "tags": [
+          "part-d"
+        ],
+        "summary": "Run Technical",
+        "description": "50-DMA trend, 20-DMA extension and RSI(14) on Step-4 survivors. Fully automatic.",
+        "operationId": "run_technical_api_cycles_current_steps_part_d_technical_run_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-d-technical/advance": {
+      "post": {
+        "tags": [
+          "part-d"
+        ],
+        "summary": "Advance Technical",
+        "operationId": "advance_technical_api_cycles_current_steps_part_d_technical_advance_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-d-risk-caps/run": {
+      "post": {
+        "tags": [
+          "part-d"
+        ],
+        "summary": "Run Risk Caps",
+        "description": "Fill open slots from Step-5 survivors under the sector/microcap caps.",
+        "operationId": "run_risk_caps_api_cycles_current_steps_part_d_risk_caps_run_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-d-risk-caps/advance": {
+      "post": {
+        "tags": [
+          "part-d"
+        ],
+        "summary": "Advance Risk Caps",
+        "operationId": "advance_risk_caps_api_cycles_current_steps_part_d_risk_caps_advance_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/journal": {
+      "get": {
+        "tags": [
+          "part-e"
+        ],
+        "summary": "List Journal",
+        "description": "Past weekly entries, most recent first. Survives cycle deletion.",
+        "operationId": "list_journal_api_journal_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JournalEntry"
+                  },
+                  "title": "Response List Journal Api Journal Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-e/run": {
+      "post": {
+        "tags": [
+          "part-e"
+        ],
+        "summary": "Run Journal",
+        "description": "Compile this week's journal row (preview).",
+        "operationId": "run_journal_api_cycles_current_steps_part_e_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/JournalRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/part-e/advance": {
+      "post": {
+        "tags": [
+          "part-e"
+        ],
+        "summary": "Advance Journal",
+        "description": "Append the row to the durable journal, then move to the Monday plan.",
+        "operationId": "advance_journal_api_cycles_current_steps_part_e_advance_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/phase3/run": {
+      "post": {
+        "tags": [
+          "phase-3"
+        ],
+        "summary": "Run Phase3",
+        "description": "Build the by-hand checklist for the open. Places no orders.",
+        "operationId": "run_phase3_api_cycles_current_steps_phase3_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Phase3RunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cycles/current/steps/phase3/advance": {
+      "post": {
+        "tags": [
+          "phase-3"
+        ],
+        "summary": "Complete Cycle",
+        "description": "Acknowledge the plan and mark the weekly ritual complete.",
+        "operationId": "complete_cycle_api_cycles_current_steps_phase3_advance_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AltAssetOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          },
+          "first_session": {
+            "type": "string",
+            "title": "First Session",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "ticker"
+        ],
+        "title": "AltAssetOption"
+      },
+      "BacktestResult": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metrics"
+          },
+          "benchmark": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Benchmark"
+          },
+          "trade_stats": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Trade Stats"
+          },
+          "turnover": {
+            "type": "number",
+            "title": "Turnover",
+            "default": 0.0
+          },
+          "equity_curve": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Equity Curve"
+          },
+          "benchmark_curve": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Benchmark Curve"
+          },
+          "weeks": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Weeks"
+          },
+          "trades": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Trades"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id"
+        ],
+        "title": "BacktestResult",
+        "description": "The full artefact: curves, per-week log and every trade."
+      },
+      "BacktestRunRequest": {
+        "properties": {
+          "universe_id": {
+            "type": "string",
+            "title": "Universe Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "index_id": {
+            "type": "string",
+            "title": "Index Id",
+            "default": "midsmall400"
+          },
+          "filter_id": {
+            "type": "string",
+            "title": "Filter Id",
+            "default": "st_1_2_5"
+          },
+          "formula": {
+            "type": "string",
+            "title": "Formula",
+            "default": "((60% * 6 Month Performance) + (30% * 3 Month Performance) + (10% * 1 Month Performance)) / (3 Month Volatility + 1 Month Volatility)"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "starting_capital": {
+            "type": "number",
+            "title": "Starting Capital",
+            "default": 1000000.0
+          },
+          "position_weight_pct": {
+            "type": "number",
+            "title": "Position Weight Pct",
+            "default": 10.0
+          },
+          "stop_multiplier": {
+            "type": "number",
+            "title": "Stop Multiplier",
+            "default": 0.8
+          },
+          "cost_bps": {
+            "type": "number",
+            "title": "Cost Bps",
+            "default": 30.0
+          },
+          "slippage_bps": {
+            "type": "number",
+            "title": "Slippage Bps",
+            "default": 25.0
+          },
+          "rank_exit_threshold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Exit Threshold"
+          },
+          "veto_rank_window": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Veto Rank Window"
+          },
+          "alt_asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Asset Id"
+          },
+          "alt_allocation_pct": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Alt Allocation Pct",
+            "default": 100.0
+          },
+          "fetch_prices": {
+            "type": "boolean",
+            "title": "Fetch Prices",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "universe_id"
+        ],
+        "title": "BacktestRunRequest",
+        "description": "Everything a run needs. Every strategy threshold is a knob, so the later\nML work can sweep them without code changes."
+      },
+      "BuildUniverseRequest": {
+        "properties": {
+          "universe_id": {
+            "type": "string",
+            "title": "Universe Id"
+          },
+          "index_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Index Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "universe_id"
+        ],
+        "title": "BuildUniverseRequest"
+      },
+      "BuyOrder": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "target_weight_pct": {
+            "type": "number",
+            "title": "Target Weight Pct",
+            "default": 10.0
+          },
+          "target_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Value"
+          },
+          "last_close": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Close"
+          },
+          "indicative_qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indicative Qty"
+          },
+          "indicative_stop": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indicative Stop"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "rank"
+        ],
+        "title": "BuyOrder"
+      },
+      "CheckResult": {
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "title": "Verdict"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "verdict"
+        ],
+        "title": "CheckResult"
+      },
+      "CreateCycleRequest": {
+        "properties": {
+          "week_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Week End"
+          }
+        },
+        "type": "object",
+        "title": "CreateCycleRequest"
+      },
+      "Cycle": {
+        "properties": {
+          "cycle_id": {
+            "type": "string",
+            "title": "Cycle Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "title": "Status",
+            "default": "open"
+          },
+          "current_step": {
+            "type": "string",
+            "title": "Current Step",
+            "default": "part_a_regime_gate"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "red_terminated",
+                  "green_completed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "regime_decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegimeDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "$ref": "#/components/schemas/CycleSteps"
+          },
+          "intraday_events": {
+            "items": {
+              "$ref": "#/components/schemas/IntradayEvent"
+            },
+            "type": "array",
+            "title": "Intraday Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cycle_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Cycle"
+      },
+      "CycleSteps": {
+        "properties": {
+          "part_a_regime_gate": {
+            "$ref": "#/components/schemas/StepEnvelope_RegimeGateOutput_"
+          },
+          "part_b_scanner": {
+            "$ref": "#/components/schemas/StepEnvelope_ScannerOutput_"
+          },
+          "part_c_exit_flags": {
+            "$ref": "#/components/schemas/StepEnvelope_ExitFlagsOutput_"
+          },
+          "part_d_fundamental": {
+            "$ref": "#/components/schemas/StepEnvelope_FundamentalOutput_"
+          },
+          "part_d_technical": {
+            "$ref": "#/components/schemas/StepEnvelope_TechnicalOutput_"
+          },
+          "part_d_risk_caps": {
+            "$ref": "#/components/schemas/StepEnvelope_RiskCapsOutput_"
+          },
+          "part_e_journal": {
+            "$ref": "#/components/schemas/StepEnvelope_JournalOutput_"
+          },
+          "phase3_plan": {
+            "$ref": "#/components/schemas/StepEnvelope_Phase3Output_"
+          }
+        },
+        "type": "object",
+        "title": "CycleSteps",
+        "description": "Named, per-step envelopes. Only Part A is fully typed this increment."
+      },
+      "CycleSummary": {
+        "properties": {
+          "cycle_id": {
+            "type": "string",
+            "title": "Cycle Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "title": "Status"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "red_terminated",
+                  "green_completed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "current_step": {
+            "type": "string",
+            "title": "Current Step"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cycle_id",
+          "status",
+          "current_step",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CycleSummary",
+        "description": "Row shape for the history list."
+      },
+      "ExitFlagsOutput": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "rank_threshold": {
+            "type": "integer",
+            "title": "Rank Threshold"
+          },
+          "universe_label": {
+            "type": "string",
+            "title": "Universe Label"
+          },
+          "holdings": {
+            "items": {
+              "$ref": "#/components/schemas/HoldingAudit"
+            },
+            "type": "array",
+            "title": "Holdings"
+          },
+          "exit_count": {
+            "type": "integer",
+            "title": "Exit Count"
+          },
+          "keep_count": {
+            "type": "integer",
+            "title": "Keep Count"
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "rank_threshold",
+          "universe_label",
+          "holdings",
+          "exit_count",
+          "keep_count"
+        ],
+        "title": "ExitFlagsOutput"
+      },
+      "ExitOrder": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qty"
+          },
+          "existing_stop": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Existing Stop"
+          },
+          "last_close": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Close"
+          },
+          "est_proceeds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Est Proceeds"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol"
+        ],
+        "title": "ExitOrder"
+      },
+      "FilterOptionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "indicator": {
+            "type": "string",
+            "title": "Indicator"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "indicator"
+        ],
+        "title": "FilterOptionOut"
+      },
+      "FormulaValidateRequest": {
+        "properties": {
+          "formula": {
+            "type": "string",
+            "title": "Formula"
+          }
+        },
+        "type": "object",
+        "required": [
+          "formula"
+        ],
+        "title": "FormulaValidateRequest"
+      },
+      "FormulaValidateResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Terms",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "FormulaValidateResponse"
+      },
+      "FundamentalAssessment": {
+        "properties": {
+          "pledging_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pledging Pct"
+          },
+          "interest_coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interest Coverage"
+          },
+          "pending_action": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Action"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "FundamentalAssessment",
+        "description": "Human-entered inputs for one candidate (blank => unverified)."
+      },
+      "FundamentalCandidate": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "listed_days": {
+            "type": "integer",
+            "title": "Listed Days",
+            "default": 0
+          },
+          "is_financial": {
+            "type": "boolean",
+            "title": "Is Financial",
+            "default": false
+          },
+          "auto_interest_coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Interest Coverage"
+          },
+          "surveillance": {
+            "type": "string",
+            "title": "Surveillance",
+            "default": ""
+          },
+          "assessment": {
+            "$ref": "#/components/schemas/FundamentalAssessment",
+            "default": {
+              "note": ""
+            }
+          },
+          "pledging": {
+            "$ref": "#/components/schemas/CheckResult"
+          },
+          "interest_cover": {
+            "$ref": "#/components/schemas/CheckResult"
+          },
+          "pending_action": {
+            "$ref": "#/components/schemas/CheckResult"
+          },
+          "listing_age": {
+            "$ref": "#/components/schemas/CheckResult"
+          },
+          "struck": {
+            "type": "boolean",
+            "title": "Struck",
+            "default": false
+          },
+          "strikes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Strikes",
+            "default": []
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "rank",
+          "pledging",
+          "interest_cover",
+          "pending_action",
+          "listing_age"
+        ],
+        "title": "FundamentalCandidate"
+      },
+      "FundamentalOutput": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "rank_window": {
+            "type": "integer",
+            "title": "Rank Window"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/FundamentalCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "struck_count": {
+            "type": "integer",
+            "title": "Struck Count"
+          },
+          "passed_count": {
+            "type": "integer",
+            "title": "Passed Count"
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "rank_window",
+          "candidates",
+          "struck_count",
+          "passed_count"
+        ],
+        "title": "FundamentalOutput"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Holding": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qty"
+          },
+          "entry_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Price"
+          },
+          "entry_date": {
+            "type": "string",
+            "title": "Entry Date",
+            "default": ""
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Price"
+          },
+          "sleeve": {
+            "type": "string",
+            "title": "Sleeve",
+            "default": ""
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "PENDING_EXIT",
+              "EXITED"
+            ],
+            "title": "Status",
+            "default": "ACTIVE"
+          },
+          "exit_reason": {
+            "type": "string",
+            "title": "Exit Reason",
+            "default": ""
+          },
+          "marked_on": {
+            "type": "string",
+            "title": "Marked On",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol"
+        ],
+        "title": "Holding"
+      },
+      "HoldingAudit": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "in_universe": {
+            "type": "boolean",
+            "title": "In Universe",
+            "default": true
+          },
+          "exit_flagged": {
+            "type": "boolean",
+            "title": "Exit Flagged",
+            "default": false
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol"
+        ],
+        "title": "HoldingAudit"
+      },
+      "HoldingsSaveRequest": {
+        "properties": {
+          "holdings": {
+            "items": {
+              "$ref": "#/components/schemas/Holding"
+            },
+            "type": "array",
+            "title": "Holdings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "holdings"
+        ],
+        "title": "HoldingsSaveRequest",
+        "description": "Replace-all save \u2014 matches an editable table in the UI."
+      },
+      "IndexCoverage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "first_session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Session"
+          },
+          "last_session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Session"
+          },
+          "first_tradable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Tradable"
+          },
+          "cached": {
+            "type": "boolean",
+            "title": "Cached",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "ticker"
+        ],
+        "title": "IndexCoverage",
+        "description": "How far back a regime index can actually gate a backtest."
+      },
+      "IndexOptionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "ticker",
+          "kind"
+        ],
+        "title": "IndexOptionOut"
+      },
+      "IntradayEvent": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "occurred_on": {
+            "type": "string",
+            "title": "Occurred On"
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Price"
+          },
+          "exit_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Price"
+          },
+          "cash_freed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Freed"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "occurred_on"
+        ],
+        "title": "IntradayEvent",
+        "description": "Phase 1 manual record \u2014 a GTT fire / exit the user logs (no polling)."
+      },
+      "JournalBuy": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "weight_pct": {
+            "type": "number",
+            "title": "Weight Pct",
+            "default": 10.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "rank"
+        ],
+        "title": "JournalBuy"
+      },
+      "JournalEntry": {
+        "properties": {
+          "cycle_id": {
+            "type": "string",
+            "title": "Cycle Id"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "logged_at": {
+            "type": "string",
+            "title": "Logged At"
+          },
+          "regime": {
+            "type": "string",
+            "title": "Regime"
+          },
+          "regime_detail": {
+            "type": "string",
+            "title": "Regime Detail",
+            "default": ""
+          },
+          "holdings": {
+            "items": {
+              "$ref": "#/components/schemas/JournalHolding"
+            },
+            "type": "array",
+            "title": "Holdings",
+            "default": []
+          },
+          "exits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exits",
+            "default": []
+          },
+          "buys": {
+            "items": {
+              "$ref": "#/components/schemas/JournalBuy"
+            },
+            "type": "array",
+            "title": "Buys",
+            "default": []
+          },
+          "strikeouts": {
+            "items": {
+              "$ref": "#/components/schemas/JournalStrikeout"
+            },
+            "type": "array",
+            "title": "Strikeouts",
+            "default": []
+          },
+          "unfilled_slots": {
+            "type": "integer",
+            "title": "Unfilled Slots",
+            "default": 0
+          },
+          "final_portfolio_size": {
+            "type": "integer",
+            "title": "Final Portfolio Size",
+            "default": 0
+          },
+          "stops_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stops Verified"
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "cycle_id",
+          "date",
+          "logged_at",
+          "regime"
+        ],
+        "title": "JournalEntry",
+        "description": "One durable weekly row. Appended to journal.jsonl / journal.md on advance."
+      },
+      "JournalHolding": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "action"
+        ],
+        "title": "JournalHolding"
+      },
+      "JournalOutput": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/JournalEntry"
+          },
+          "committed": {
+            "type": "boolean",
+            "title": "Committed",
+            "default": false
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry"
+        ],
+        "title": "JournalOutput"
+      },
+      "JournalRunRequest": {
+        "properties": {
+          "stops_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stops Verified"
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "JournalRunRequest"
+      },
+      "JournalStrikeout": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "rank",
+          "step"
+        ],
+        "title": "JournalStrikeout"
+      },
+      "PartBRunRequest": {
+        "properties": {
+          "universe_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Universe Ids"
+          },
+          "formula": {
+            "type": "string",
+            "title": "Formula",
+            "default": ""
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ScannerFilters",
+            "default": {
+              "sectors": []
+            }
+          }
+        },
+        "type": "object",
+        "title": "PartBRunRequest"
+      },
+      "PartDFundamentalRunRequest": {
+        "properties": {
+          "assessments": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FundamentalAssessment"
+            },
+            "type": "object",
+            "title": "Assessments"
+          },
+          "refresh_auto": {
+            "type": "boolean",
+            "title": "Refresh Auto",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "PartDFundamentalRunRequest",
+        "description": "Manual assessments keyed by symbol; preserved across re-runs."
+      },
+      "Phase3Output": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "regime": {
+            "type": "string",
+            "title": "Regime"
+          },
+          "capital_basis": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capital Basis"
+          },
+          "capital_source": {
+            "type": "string",
+            "title": "Capital Source",
+            "default": ""
+          },
+          "stop_pct": {
+            "type": "number",
+            "title": "Stop Pct",
+            "default": 20.0
+          },
+          "exits": {
+            "items": {
+              "$ref": "#/components/schemas/ExitOrder"
+            },
+            "type": "array",
+            "title": "Exits",
+            "default": []
+          },
+          "buys": {
+            "items": {
+              "$ref": "#/components/schemas/BuyOrder"
+            },
+            "type": "array",
+            "title": "Buys",
+            "default": []
+          },
+          "est_proceeds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Est Proceeds"
+          },
+          "est_deployment": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Est Deployment"
+          },
+          "checklist": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Checklist",
+            "default": []
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "regime"
+        ],
+        "title": "Phase3Output"
+      },
+      "Phase3RunRequest": {
+        "properties": {
+          "portfolio_capital": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolio Capital"
+          }
+        },
+        "type": "object",
+        "title": "Phase3RunRequest",
+        "description": "Capital basis for sizing. Blank => estimated from the ledger."
+      },
+      "PortfolioSlot": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "sleeve": {
+            "type": "string",
+            "title": "Sleeve",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol"
+        ],
+        "title": "PortfolioSlot",
+        "description": "An existing holding being carried into next week."
+      },
+      "PortfolioSummary": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "price_date": {
+            "type": "string",
+            "title": "Price Date",
+            "default": ""
+          },
+          "held_count": {
+            "type": "integer",
+            "title": "Held Count",
+            "default": 0
+          },
+          "active_count": {
+            "type": "integer",
+            "title": "Active Count",
+            "default": 0
+          },
+          "pending_exit_count": {
+            "type": "integer",
+            "title": "Pending Exit Count",
+            "default": 0
+          },
+          "exited_count": {
+            "type": "integer",
+            "title": "Exited Count",
+            "default": 0
+          },
+          "capital_deployed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capital Deployed"
+          },
+          "market_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value"
+          },
+          "unrealised_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealised Pnl"
+          },
+          "unrealised_pnl_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealised Pnl Pct"
+          },
+          "open_risk": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Risk"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PositionValue"
+            },
+            "type": "array",
+            "title": "Positions",
+            "default": []
+          },
+          "incomplete": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Incomplete",
+            "default": []
+          },
+          "unpriced": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unpriced",
+            "default": []
+          },
+          "stale_prices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Stale Prices",
+            "default": []
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of"
+        ],
+        "title": "PortfolioSummary",
+        "description": "Capital deployed and what it is worth now.\n\nCovers held positions only (ACTIVE + PENDING_EXIT). EXITED rows are excluded:\nthe ledger stores no exit price, so realised P&L cannot be computed."
+      },
+      "PositionValue": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "PENDING_EXIT",
+              "EXITED"
+            ],
+            "title": "Status"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qty"
+          },
+          "entry_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Price"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "last_close": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Close"
+          },
+          "price_date": {
+            "type": "string",
+            "title": "Price Date",
+            "default": ""
+          },
+          "market_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value"
+          },
+          "pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pnl"
+          },
+          "pnl_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pnl Pct"
+          },
+          "weight_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Pct"
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Price"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "status"
+        ],
+        "title": "PositionValue",
+        "description": "Per-position valuation. Cost basis is qty x entry_price \u2014 both must be set."
+      },
+      "RegimeDecision": {
+        "properties": {
+          "index": {
+            "type": "string",
+            "title": "Index"
+          },
+          "filter": {
+            "type": "string",
+            "title": "Filter"
+          },
+          "regime": {
+            "type": "string",
+            "title": "Regime"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "filter",
+          "regime"
+        ],
+        "title": "RegimeDecision",
+        "description": "At-a-glance summary of Part A, surfaced at the top of the cycle file."
+      },
+      "RegimeGateOutput": {
+        "properties": {
+          "regime": {
+            "type": "string",
+            "enum": [
+              "GREEN",
+              "RED"
+            ],
+            "title": "Regime"
+          },
+          "week_end": {
+            "type": "string",
+            "title": "Week End"
+          },
+          "index_close": {
+            "type": "number",
+            "title": "Index Close"
+          },
+          "line_label": {
+            "type": "string",
+            "title": "Line Label",
+            "default": ""
+          },
+          "line_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Value"
+          },
+          "index_id": {
+            "type": "string",
+            "title": "Index Id"
+          },
+          "index_label": {
+            "type": "string",
+            "title": "Index Label"
+          },
+          "index_ticker": {
+            "type": "string",
+            "title": "Index Ticker"
+          },
+          "filter_id": {
+            "type": "string",
+            "title": "Filter Id"
+          },
+          "filter_label": {
+            "type": "string",
+            "title": "Filter Label"
+          },
+          "indicator": {
+            "type": "string",
+            "title": "Indicator"
+          },
+          "data_source": {
+            "type": "string",
+            "title": "Data Source"
+          },
+          "previous_regime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "GREEN",
+                  "RED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Regime"
+          },
+          "reentry_required": {
+            "type": "boolean",
+            "title": "Reentry Required",
+            "default": false
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions",
+            "default": []
+          },
+          "active_holdings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Active Holdings",
+            "default": []
+          },
+          "pending_exit": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pending Exit",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "regime",
+          "week_end",
+          "index_close",
+          "index_id",
+          "index_label",
+          "index_ticker",
+          "filter_id",
+          "filter_label",
+          "indicator",
+          "data_source"
+        ],
+        "title": "RegimeGateOutput",
+        "description": "Result of the weekly regime gate (steps 2.1\u20132.3)."
+      },
+      "RegimeGateRunRequest": {
+        "properties": {
+          "index_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Id"
+          },
+          "filter_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filter Id"
+          }
+        },
+        "type": "object",
+        "title": "RegimeGateRunRequest"
+      },
+      "RegimeOptions": {
+        "properties": {
+          "indices": {
+            "items": {
+              "$ref": "#/components/schemas/IndexOptionOut"
+            },
+            "type": "array",
+            "title": "Indices"
+          },
+          "filters": {
+            "items": {
+              "$ref": "#/components/schemas/FilterOptionOut"
+            },
+            "type": "array",
+            "title": "Filters"
+          },
+          "default_index_id": {
+            "type": "string",
+            "title": "Default Index Id"
+          },
+          "default_filter_id": {
+            "type": "string",
+            "title": "Default Filter Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "indices",
+          "filters",
+          "default_index_id",
+          "default_filter_id"
+        ],
+        "title": "RegimeOptions",
+        "description": "Selectable indices + filters offered to the UI dropdowns."
+      },
+      "RiskCapsOutput": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "target_min": {
+            "type": "integer",
+            "title": "Target Min"
+          },
+          "target_max": {
+            "type": "integer",
+            "title": "Target Max"
+          },
+          "max_per_sector": {
+            "type": "integer",
+            "title": "Max Per Sector"
+          },
+          "max_microcap": {
+            "type": "integer",
+            "title": "Max Microcap"
+          },
+          "kept": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioSlot"
+            },
+            "type": "array",
+            "title": "Kept"
+          },
+          "open_slots": {
+            "type": "integer",
+            "title": "Open Slots"
+          },
+          "buys": {
+            "items": {
+              "$ref": "#/components/schemas/SelectedBuy"
+            },
+            "type": "array",
+            "title": "Buys"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedCandidate"
+            },
+            "type": "array",
+            "title": "Skipped"
+          },
+          "unfilled_slots": {
+            "type": "integer",
+            "title": "Unfilled Slots"
+          },
+          "sector_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Sector Counts"
+          },
+          "microcap_count": {
+            "type": "integer",
+            "title": "Microcap Count"
+          },
+          "final_portfolio_size": {
+            "type": "integer",
+            "title": "Final Portfolio Size"
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "target_min",
+          "target_max",
+          "max_per_sector",
+          "max_microcap",
+          "kept",
+          "open_slots",
+          "buys",
+          "skipped",
+          "unfilled_slots",
+          "sector_counts",
+          "microcap_count",
+          "final_portfolio_size"
+        ],
+        "title": "RiskCapsOutput"
+      },
+      "RunProgress": {
+        "properties": {
+          "done": {
+            "type": "integer",
+            "title": "Done",
+            "default": 0
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "pct": {
+            "type": "number",
+            "title": "Pct",
+            "default": 0.0
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "RunProgress"
+      },
+      "RunRecord": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus",
+            "default": "queued"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "request": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Request"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/RunProgress"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "error": {
+            "type": "string",
+            "title": "Error",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RunRecord",
+        "description": "The light row shown in the run list and polled for progress."
+      },
+      "RunStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "fetching",
+          "running",
+          "done",
+          "failed",
+          "cancelled",
+          "interrupted"
+        ],
+        "title": "RunStatus"
+      },
+      "ScannerCandidate": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "company": {
+            "type": "string",
+            "title": "Company",
+            "default": ""
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "close": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close"
+          },
+          "median_tv_cr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Tv Cr"
+          },
+          "listed_days": {
+            "type": "integer",
+            "title": "Listed Days",
+            "default": 0
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "eligible": {
+            "type": "boolean",
+            "title": "Eligible",
+            "default": false
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol"
+        ],
+        "title": "ScannerCandidate"
+      },
+      "ScannerFilters": {
+        "properties": {
+          "sectors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sectors"
+          },
+          "price_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Min"
+          },
+          "price_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Max"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          }
+        },
+        "type": "object",
+        "title": "ScannerFilters"
+      },
+      "ScannerOutput": {
+        "properties": {
+          "universe_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Universe Ids"
+          },
+          "universe_label": {
+            "type": "string",
+            "title": "Universe Label"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "formula": {
+            "type": "string",
+            "title": "Formula"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ScannerFilters"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "eligible_count": {
+            "type": "integer",
+            "title": "Eligible Count"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ScannerCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "universe_ids",
+          "universe_label",
+          "as_of",
+          "formula",
+          "filters",
+          "total",
+          "eligible_count",
+          "candidates"
+        ],
+        "title": "ScannerOutput"
+      },
+      "SelectedBuy": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "sleeve": {
+            "type": "string",
+            "title": "Sleeve",
+            "default": ""
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "weight_pct": {
+            "type": "number",
+            "title": "Weight Pct",
+            "default": 10.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "rank"
+        ],
+        "title": "SelectedBuy"
+      },
+      "SkippedCandidate": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "sleeve": {
+            "type": "string",
+            "title": "Sleeve",
+            "default": ""
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "rank",
+          "reason"
+        ],
+        "title": "SkippedCandidate"
+      },
+      "StepEnvelope_ExitFlagsOutput_": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StepStatus",
+            "default": "pending"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExitFlagsOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "StepEnvelope[ExitFlagsOutput]"
+      },
+      "StepEnvelope_FundamentalOutput_": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StepStatus",
+            "default": "pending"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FundamentalOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "StepEnvelope[FundamentalOutput]"
+      },
+      "StepEnvelope_JournalOutput_": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StepStatus",
+            "default": "pending"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JournalOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "StepEnvelope[JournalOutput]"
+      },
+      "StepEnvelope_Phase3Output_": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StepStatus",
+            "default": "pending"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Phase3Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "StepEnvelope[Phase3Output]"
+      },
+      "StepEnvelope_RegimeGateOutput_": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StepStatus",
+            "default": "pending"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegimeGateOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "StepEnvelope[RegimeGateOutput]"
+      },
+      "StepEnvelope_RiskCapsOutput_": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StepStatus",
+            "default": "pending"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskCapsOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "StepEnvelope[RiskCapsOutput]"
+      },
+      "StepEnvelope_ScannerOutput_": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StepStatus",
+            "default": "pending"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScannerOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "StepEnvelope[ScannerOutput]"
+      },
+      "StepEnvelope_TechnicalOutput_": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StepStatus",
+            "default": "pending"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TechnicalOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "StepEnvelope[TechnicalOutput]"
+      },
+      "StepStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "in_progress",
+          "done",
+          "skipped",
+          "failed"
+        ],
+        "title": "StepStatus"
+      },
+      "SymbolLookup": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "found": {
+            "type": "boolean",
+            "title": "Found"
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "sleeve": {
+            "type": "string",
+            "title": "Sleeve",
+            "default": ""
+          },
+          "last_close": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Close"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "found"
+        ],
+        "title": "SymbolLookup",
+        "description": "Best-effort auto-fill when the user types a symbol."
+      },
+      "TechnicalCandidate": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "sector": {
+            "type": "string",
+            "title": "Sector",
+            "default": ""
+          },
+          "close": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close"
+          },
+          "dma_50": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dma 50"
+          },
+          "dma_20": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dma 20"
+          },
+          "extension_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extension Pct"
+          },
+          "rsi_14": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rsi 14"
+          },
+          "trend": {
+            "$ref": "#/components/schemas/CheckResult"
+          },
+          "extension": {
+            "$ref": "#/components/schemas/CheckResult"
+          },
+          "overbought": {
+            "$ref": "#/components/schemas/CheckResult"
+          },
+          "struck": {
+            "type": "boolean",
+            "title": "Struck",
+            "default": false
+          },
+          "strikes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Strikes",
+            "default": []
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "rank",
+          "trend",
+          "extension",
+          "overbought"
+        ],
+        "title": "TechnicalCandidate"
+      },
+      "TechnicalOutput": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/TechnicalCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "struck_count": {
+            "type": "integer",
+            "title": "Struck Count"
+          },
+          "passed_count": {
+            "type": "integer",
+            "title": "Passed Count"
+          },
+          "survivors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Survivors",
+            "default": []
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "candidates",
+          "struck_count",
+          "passed_count"
+        ],
+        "title": "TechnicalOutput"
+      },
+      "UniverseOptionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "UniverseOptionOut"
+      },
+      "UniverseSummary": {
+        "properties": {
+          "universe_id": {
+            "type": "string",
+            "title": "Universe Id"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "microcap_count": {
+            "type": "integer",
+            "title": "Microcap Count",
+            "default": 0
+          },
+          "cached_prices": {
+            "type": "integer",
+            "title": "Cached Prices",
+            "default": 0
+          },
+          "first_session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Session"
+          },
+          "last_session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Session"
+          }
+        },
+        "type": "object",
+        "required": [
+          "universe_id",
+          "size"
+        ],
+        "title": "UniverseSummary"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

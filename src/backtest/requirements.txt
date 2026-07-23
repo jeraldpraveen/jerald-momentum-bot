@@ -1,0 +1,10 @@
+# Backtest research module deps (kept separate from the app's requirements).
+pandas>=2.2
+numpy>=1.26
+yfinance>=0.2.40
+pyarrow>=15.0          # parquet price cache
+scikit-learn>=1.4      # ML probability model (later phases)
+lightgbm>=4.0          # gradient boosting (later phases)
+matplotlib>=3.8        # notebook plots
+jupyter>=1.0
+pytest>=8.0
