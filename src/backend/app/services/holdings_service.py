@@ -36,8 +36,12 @@ def _normalize(h: Holding) -> dict:
     d = h.model_dump()
     d["symbol"] = str(d.get("symbol", "")).strip().upper()
     if d.get("status") == "ACTIVE":
+        # An ACTIVE position has no exit metadata — an exit price only belongs to
+        # a name you have actually sold.
         d["exit_reason"] = ""
         d["marked_on"] = ""
+        d["exit_price"] = None
+        d["exit_charges"] = None      # no sell yet -> no sell charges
     return d
 
 
@@ -93,7 +97,9 @@ def summarize(refresh: bool = False) -> PortfolioSummary:
     priced_cost = 0.0        # cost of the names we could also value, for a like-for-like P&L
 
     for h in held:
-        cost = h.qty * h.entry_price if (h.qty and h.entry_price) else None
+        # Cost basis includes the buy charges — that is the capital actually at work.
+        cost = (h.qty * h.entry_price + (h.entry_charges or 0.0)
+                if (h.qty and h.entry_price) else None)
         close, close_date = closes.get(h.symbol, (None, ""))
         mv = h.qty * close if (h.qty and close) else None
         if cost is None:
@@ -151,10 +157,21 @@ def summarize(refresh: bool = False) -> PortfolioSummary:
         warnings.append(
             f"Valued at the {price_date} close — your broker shows a live price, so "
             "these figures will differ intraday.")
-    if any(h.status == "EXITED" for h in holdings):
+    # Realised P&L from names you have actually sold (EXITED + an exit price).
+    exited = [h for h in holdings if h.status == "EXITED"]
+    priced_exits = [h for h in exited if h.qty and h.entry_price and h.exit_price]
+    # Net realised = proceeds (less sell charges) - cost (plus buy charges). Both
+    # charge legs matter, which is exactly why an accurate CAGR needs them.
+    realised = sum(
+        h.qty * (h.exit_price - h.entry_price) - (h.entry_charges or 0.0) - (h.exit_charges or 0.0)
+        for h in priced_exits)
+    realised_cost = sum(h.qty * h.entry_price + (h.entry_charges or 0.0) for h in priced_exits)
+    missing_exit_px = [h.symbol for h in exited if not h.exit_price]
+    if missing_exit_px:
         warnings.append(
-            "EXITED positions are not valued — the ledger stores no exit price, "
-            "so realised P&L is not available.")
+            f"EXITED without an exit price: {', '.join(missing_exit_px[:5])}"
+            f"{'…' if len(missing_exit_px) > 5 else ''} — enter the sell price so realised "
+            "P&L can be counted.")
 
     return PortfolioSummary(
         as_of=today.isoformat(), price_date=price_date,
@@ -167,6 +184,9 @@ def summarize(refresh: bool = False) -> PortfolioSummary:
         unrealised_pnl=pnl,
         unrealised_pnl_pct=round((market_value / priced_cost - 1) * 100, 2) if priced_cost else None,
         open_risk=round(open_risk, 2) or None,
+        realised_pnl=round(realised, 2) if priced_exits else None,
+        realised_pnl_pct=round(realised / realised_cost * 100, 2) if realised_cost else None,
+        realised_count=len(priced_exits),
         positions=positions, incomplete=incomplete, unpriced=unpriced,
         stale_prices=stale_prices, warnings=warnings,
     )

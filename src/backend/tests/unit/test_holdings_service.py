@@ -268,3 +268,155 @@ def test_summary_refresh_forces_a_live_pull(isolated, monkeypatch):
     holdings_service.summarize()
     holdings_service.summarize(refresh=True)
     assert seen == [False, True]
+
+
+# --- ledger durability ------------------------------------------------------
+
+def test_a_crash_mid_write_leaves_the_previous_ledger_intact(isolated, monkeypatch):
+    """The ledger is the one irreplaceable file here. A half-written CSV would
+    lose real positions, so the write must be atomic (temp + os.replace)."""
+    from app import config
+    from app.repositories import ledger_repository as L
+
+    holdings_service.save_holdings([Holding(symbol="AAA", qty=10, entry_price=100)])
+    before = config.HOLDINGS_LEDGER.read_text(encoding="utf-8")
+
+    # Explode after the temp file is written but before it is swapped in.
+    def boom(src, dst):
+        raise OSError("simulated crash mid-write")
+
+    monkeypatch.setattr(L.os, "replace", boom)
+    with pytest.raises(OSError):
+        holdings_service.save_holdings([Holding(symbol="BBB", qty=99, entry_price=1)])
+
+    assert config.HOLDINGS_LEDGER.read_text(encoding="utf-8") == before
+    assert [h.symbol for h in holdings_service.list_holdings()] == ["AAA"]
+
+
+def test_every_save_snapshots_the_previous_ledger(isolated):
+    from app.repositories import ledger_repository as L
+
+    holdings_service.save_holdings([Holding(symbol="AAA", qty=10, entry_price=100)])
+    holdings_service.save_holdings([Holding(symbol="BBB", qty=20, entry_price=200)])
+
+    backups = L.list_backups()
+    assert backups, "a snapshot should exist before the ledger is overwritten"
+    assert "AAA" in backups[0].read_text(encoding="utf-8")
+
+
+def test_a_bad_edit_can_be_rolled_back(isolated):
+    """Atomicity does not protect against a fully-written WRONG file — a bad
+    edit, or Excel reformatting it. Backups are what make that recoverable."""
+    from app.repositories import ledger_repository as L
+
+    holdings_service.save_holdings([
+        Holding(symbol="SANSERA", qty=25, entry_price=3239.52),
+        Holding(symbol="TMB", qty=100, entry_price=791.82),
+    ])
+    holdings_service.save_holdings([])              # oops — wiped the ledger
+    assert holdings_service.list_holdings() == []
+
+    assert L.restore_backup(L.list_backups()[0].name) is True
+    assert {h.symbol for h in holdings_service.list_holdings()} == {"SANSERA", "TMB"}
+
+
+def test_backups_are_capped(isolated, monkeypatch):
+    from app.repositories import ledger_repository as L
+    monkeypatch.setattr(L, "BACKUP_KEEP", 3)
+
+    for i in range(6):
+        holdings_service.save_holdings([Holding(symbol=f"S{i}", qty=1, entry_price=1)])
+    assert len(L.list_backups()) <= 3
+
+
+def test_a_malformed_frame_is_refused(isolated):
+    """Better to fail loudly than to write a ledger later code cannot read."""
+    from app.repositories import ledger_repository as L
+    with pytest.raises(ValueError, match="unexpected columns"):
+        L.save_ledger(pd.DataFrame({"nonsense": [1]}))
+
+
+def test_restoring_an_unknown_backup_reports_false(isolated):
+    from app.repositories import ledger_repository as L
+    assert L.restore_backup("holdings_ledger.19990101-000000.csv") is False
+
+
+# --- exit price & realised P&L ----------------------------------------------
+
+def test_exit_price_round_trips_through_the_ledger(isolated):
+    holdings_service.save_holdings([
+        Holding(symbol="TMB", qty=100, entry_price=791.82, status="EXITED",
+                exit_reason="rank_exit", exit_price=820.0),
+    ])
+    h = holdings_service.list_holdings()[0]
+    assert h.status == "EXITED" and h.exit_price == 820.0
+
+
+def test_active_status_clears_any_exit_price(isolated):
+    """An ACTIVE position cannot carry an exit price — flipping back clears it."""
+    saved = holdings_service.save_holdings([
+        Holding(symbol="AAA", qty=10, entry_price=100, status="ACTIVE", exit_price=150.0),
+    ])
+    assert saved[0].exit_price is None
+
+
+def test_realised_pnl_from_exited_positions(isolated, monkeypatch):
+    _prices(monkeypatch, {"AAA": 60.0})       # one ACTIVE name still held
+    holdings_service.save_holdings([
+        Holding(symbol="AAA", qty=100, entry_price=50),                    # unrealised
+        Holding(symbol="TMB", qty=100, entry_price=791.82, status="EXITED",
+                exit_reason="rank_exit", exit_price=820.0),                # +2818 realised
+        Holding(symbol="XYZ", qty=50, entry_price=200, status="EXITED",
+                exit_price=180.0),                                         # -1000 realised
+    ])
+    s = holdings_service.summarize()
+    assert s.realised_count == 2
+    assert s.realised_pnl == pytest.approx(100 * (820 - 791.82) + 50 * (180 - 200))
+    # unrealised still only covers the ACTIVE name
+    assert s.unrealised_pnl == pytest.approx(100 * (60 - 50))
+
+
+def test_exited_without_exit_price_is_warned_not_counted(isolated, monkeypatch):
+    _prices(monkeypatch, {})
+    holdings_service.save_holdings([
+        Holding(symbol="TMB", qty=100, entry_price=791.82, status="EXITED"),   # no exit price
+    ])
+    s = holdings_service.summarize()
+    assert s.realised_count == 0 and s.realised_pnl is None
+    assert any("EXITED without an exit price" in w for w in s.warnings)
+
+
+# --- charges (entry + exit) -------------------------------------------------
+
+def test_charges_round_trip_and_net_realised_pnl(isolated, monkeypatch):
+    _prices(monkeypatch, {})
+    holdings_service.save_holdings([
+        Holding(symbol="TMB", qty=100, entry_price=791.82, status="EXITED",
+                exit_price=820.0, entry_charges=30.0, exit_charges=35.0),
+    ])
+    h = holdings_service.list_holdings()[0]
+    assert h.entry_charges == 30.0 and h.exit_charges == 35.0
+
+    s = holdings_service.summarize()
+    gross = 100 * (820.0 - 791.82)
+    assert s.realised_pnl == pytest.approx(gross - 30.0 - 35.0)   # net of both legs
+
+
+def test_entry_charges_raise_the_cost_basis(isolated, monkeypatch):
+    _prices(monkeypatch, {"AAA": 100.0})
+    holdings_service.save_holdings([
+        Holding(symbol="AAA", qty=100, entry_price=100.0, entry_charges=200.0),
+    ])
+    s = holdings_service.summarize()
+    assert s.capital_deployed == pytest.approx(100 * 100 + 200)   # cost includes buy charges
+    # market value 100x100 = 10000, cost 10200 -> small loss from charges
+    assert s.unrealised_pnl == pytest.approx(10000 - 10200)
+
+
+def test_active_status_clears_exit_charges(isolated):
+    saved = holdings_service.save_holdings([
+        Holding(symbol="AAA", qty=10, entry_price=100, status="ACTIVE",
+                exit_price=150.0, exit_charges=20.0, entry_charges=15.0),
+    ])
+    assert saved[0].exit_charges is None
+    assert saved[0].entry_charges == 15.0        # buy charges are kept

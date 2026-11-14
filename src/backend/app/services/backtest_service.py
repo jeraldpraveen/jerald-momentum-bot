@@ -212,6 +212,7 @@ def _execute(run_id: str, body: BacktestRunRequest, cancel: threading.Event) -> 
             veto_rank_window=body.veto_rank_window,
             alt_asset_id=body.alt_asset_id,
             alt_allocation_pct=body.alt_allocation_pct,
+            cash_yield_pct=body.cash_yield_pct,
             progress=progress,
         )
 

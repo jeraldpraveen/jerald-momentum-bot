@@ -158,3 +158,70 @@ def test_red_week_plan_is_exits_only(isolated, journal_paths, monkeypatch, now_i
 
     done = cycle_service.complete_cycle(now=now_ist)
     assert done.outcome == "red_terminated"           # not overwritten
+
+
+# --- cash-aware buy funding (the real-Monday bug) ---------------------------
+
+def test_buys_are_funded_in_rank_order_up_to_available_cash(at_step8, now_ist):
+    """The bug from the first live Monday: the plan listed 5 buys needing far
+    more than the cash a single exit freed. Buys must fund best-rank-first up to
+    what is actually available, and defer the rest."""
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=250_000)
+
+    funded = [b for b in out.buys if b.funded]
+    deferred = [b for b in out.buys if not b.funded]
+    # 10% of 10 lakh = 1 lakh each, so 2.5 lakh funds exactly 2 full positions.
+    assert len(funded) == 2
+    assert out.funded_count == 2 and out.deferred_count == len(deferred)
+    # Funded ones are the best ranks; deferred are the worse ones.
+    assert max(b.rank for b in funded) <= min((b.rank for b in deferred), default=999)
+    assert all(b.defer_reason == "insufficient cash" for b in deferred)
+    assert out.deployable <= 250_000
+
+
+def test_deferred_buys_are_warned_and_listed(at_step8, now_ist):
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=150_000)
+    assert out.deferred_count >= 1
+    assert any("Deferred for want of cash" in w for w in out.warnings)
+    text = "\n".join(out.checklist)
+    assert "DEFERRED" in text
+
+
+def test_available_cash_defaults_to_capital_minus_kept(at_step8, now_ist):
+    """With no cash entered, everything you are not keeping is deployable —
+    exiting positions plus any idle cash beyond your held value."""
+    out = _out(now_ist, portfolio_capital=1_000_000)
+    assert out.cash_source == "capital minus kept holdings"
+    # capital 10L, kept holdings are tiny in the fixture, so nearly all is free.
+    assert out.available_cash > 900_000
+
+
+def test_entered_cash_overrides_the_exit_estimate(at_step8, now_ist):
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=90_000)
+    assert out.cash_source == "entered"
+    assert out.available_cash == 90_000
+
+
+def test_cash_below_one_position_funds_nothing_and_says_so(at_step8, now_ist):
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=40_000)
+    # A 10% position is 1 lakh; 40k funds none.
+    assert out.funded_count == 0
+    assert any("below one 10% position" in w for w in out.warnings)
+
+
+def test_overweight_holdings_are_flagged(at_step8, monkeypatch, now_ist):
+    """A holding well above 10% crowds out new names — the plan should say why
+    there is less cash than open slots."""
+    # SANSERA at 25 x ~100 (fixture prices everything at 100) is tiny; make one
+    # holding large by entering a big quantity.
+    _edit(0, qty=100000)                       # a deliberately huge position
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=500_000)
+    assert any("Above the 10% target" in w for w in out.warnings)
+
+
+def test_leftover_cash_is_reported_not_forced(at_step8, now_ist):
+    """A slot-short remainder stays in cash rather than becoming an undersized buy."""
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=150_000)
+    # 1 position funded (1 lakh), 50k left over — a slot short of the next.
+    assert out.leftover_cash and out.leftover_cash > 0
+    assert any("stays in cash" in c for c in out.checklist)

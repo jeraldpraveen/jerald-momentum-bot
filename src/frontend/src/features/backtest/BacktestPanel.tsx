@@ -12,6 +12,7 @@ import type {
 } from "../../api/types";
 import { MultiSelect } from "../../components/MultiSelect";
 import { RunResult } from "./RunResult";
+import { SweepPanel } from "./SweepPanel";
 
 const LIVE: RunStatus[] = ["queued", "fetching", "running"];
 const isLive = (s: RunStatus) => LIVE.includes(s);
@@ -343,6 +344,21 @@ export function BacktestPanel() {
         )}
       </div>
 
+      {/* Fixed return on idle RED-week cash. The honest way to model a bond or
+          liquid fund: no ETF, no dividend-capture problem, full 20-year window. */}
+      <div className="scan-filters">
+        <label>
+          <span>Fixed yield on idle cash (%/yr)</span>
+          <input type="number" min={0} max={20} step={0.5}
+                 value={form.cash_yield_pct ?? 0}
+                 onChange={(e) => set("cash_yield_pct", Math.min(20, Math.max(0, Number(e.target.value))))} />
+          <span className="field-hint">
+            models a bond / liquid fund cleanly; 0 = idle cash (the live rule).
+            6–7% ≈ an overnight/liquid fund
+          </span>
+        </label>
+      </div>
+
       <div className="scan-filters">
         <label style={{ flex: 3 }}>
           <span>Scoring formula</span>
@@ -375,6 +391,9 @@ export function BacktestPanel() {
         </button>
         <span className="muted">Runs in the background — you can leave this tab.</span>
       </div>
+
+      {/* --- formula sweep ------------------------------------------------- */}
+      <SweepPanel universes={universes} options={options} />
 
       {/* --- 3. runs -------------------------------------------------------- */}
       <h4 className="jr-head">Runs <span className="muted">({runs.length})</span></h4>

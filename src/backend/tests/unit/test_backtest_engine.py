@@ -424,3 +424,37 @@ def test_win_rate_separates_cash_weeks_from_losing_weeks():
 def test_invested_win_rate_is_zero_without_exposure_data():
     m = metrics.compute(_curve([100, 110, 120]))
     assert m.win_rate_invested_pct == 0.0
+
+
+def test_cash_yield_compounds_only_on_idle_cash(bt_dirs, monkeypatch):  # noqa: F811
+    """A fixed yield on cash is the honest way to model a bond/liquid parking
+    baseline — no ETF, no dividend-capture artifact, and it covers the full
+    window. It must lift a mostly-cash (RED) run and leave a fully-invested
+    run essentially unchanged."""
+    from app import config as app_config
+    idx = app_config.get_index_option(app_config.DEFAULT_INDEX_ID).ticker
+    price_store.save(idx, _series(900, seed=1))
+    price_store.save("S0.NS", _series(900, drift=0.002, seed=10))
+    universe.save("u", [universe.UniverseMember("S0", "Auto", "MIDSMALLCAP400")])
+
+    monkeypatch.setattr(engine.strategy, "decide_regime",
+                        lambda w, f: ("RED", "Supertrend", 1.0))   # always cash
+    flat = engine.run_backtest(universe_id="u", cash_yield_pct=0.0)
+    paid = engine.run_backtest(universe_id="u", cash_yield_pct=7.0)
+
+    assert paid["metrics"]["end_equity"] > flat["metrics"]["end_equity"]
+    # ~7%/yr over the simulated span, give or take the warm-up.
+    yrs = flat["metrics"]["weeks"] / 52
+    assert paid["metrics"]["end_equity"] / flat["metrics"]["end_equity"] == \
+        pytest.approx(1.07 ** yrs, rel=0.05)
+    assert paid["config"]["cash_yield_pct"] == 7.0
+
+
+def test_cash_yield_default_is_zero(bt_dirs, monkeypatch):  # noqa: F811
+    from app import config as app_config
+    price_store.save(app_config.get_index_option(app_config.DEFAULT_INDEX_ID).ticker,
+                     _series(900, seed=1))
+    price_store.save("S0.NS", _series(900, seed=10))
+    universe.save("u", [universe.UniverseMember("S0", "Auto", "MIDSMALLCAP400")])
+    res = engine.run_backtest(universe_id="u")
+    assert res["config"]["cash_yield_pct"] == 0.0

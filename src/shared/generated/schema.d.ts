@@ -163,6 +163,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/backtest/sweeps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sweeps */
+        get: operations["list_sweeps_api_backtest_sweeps_get"];
+        put?: never;
+        /**
+         * Start Sweep
+         * @description Queue a walk-forward sweep. Always measures the noise floor first.
+         */
+        post: operations["start_sweep_api_backtest_sweeps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backtest/sweeps/{sweep_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sweep */
+        get: operations["get_sweep_api_backtest_sweeps__sweep_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Sweep */
+        delete: operations["delete_sweep_api_backtest_sweeps__sweep_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backtest/sweeps/{sweep_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sweep Result */
+        get: operations["get_sweep_result_api_backtest_sweeps__sweep_id__result_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backtest/sweeps/{sweep_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Sweep */
+        post: operations["cancel_sweep_api_backtest_sweeps__sweep_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/backtest/runs": {
         parameters: {
             query?: never;
@@ -879,6 +952,11 @@ export interface components {
              */
             alt_allocation_pct: number;
             /**
+             * Cash Yield Pct
+             * @default 0
+             */
+            cash_yield_pct: number;
+            /**
              * Fetch Prices
              * @default true
              */
@@ -915,6 +993,16 @@ export interface components {
             indicative_qty?: number | null;
             /** Indicative Stop */
             indicative_stop?: number | null;
+            /**
+             * Funded
+             * @default true
+             */
+            funded: boolean;
+            /**
+             * Defer Reason
+             * @default
+             */
+            defer_reason: string;
         };
         /** CheckResult */
         CheckResult: {
@@ -1207,6 +1295,12 @@ export interface components {
              * @default
              */
             marked_on: string;
+            /** Exit Price */
+            exit_price?: number | null;
+            /** Entry Charges */
+            entry_charges?: number | null;
+            /** Exit Charges */
+            exit_charges?: number | null;
         };
         /** HoldingAudit */
         HoldingAudit: {
@@ -1427,6 +1521,45 @@ export interface components {
              */
             reasons: string[];
         };
+        /**
+         * NoiseFloor
+         * @description How much CAGR spread random formulas produce on the SAME data.
+         *
+         *     The reference every optimised result must be read against: an improvement
+         *     smaller than this is indistinguishable from luck.
+         */
+        NoiseFloor: {
+            /**
+             * N
+             * @default 0
+             */
+            n: number;
+            /**
+             * Min Cagr
+             * @default 0
+             */
+            min_cagr: number;
+            /**
+             * Max Cagr
+             * @default 0
+             */
+            max_cagr: number;
+            /**
+             * Mean Cagr
+             * @default 0
+             */
+            mean_cagr: number;
+            /**
+             * Std Cagr
+             * @default 0
+             */
+            std_cagr: number;
+            /**
+             * Spread
+             * @default 0
+             */
+            spread: number;
+        };
         /** PartBRunRequest */
         PartBRunRequest: {
             /** Universe Ids */
@@ -1476,6 +1609,27 @@ export interface components {
              * @default 20
              */
             stop_pct: number;
+            /** Available Cash */
+            available_cash?: number | null;
+            /**
+             * Cash Source
+             * @default
+             */
+            cash_source: string;
+            /** Deployable */
+            deployable?: number | null;
+            /** Leftover Cash */
+            leftover_cash?: number | null;
+            /**
+             * Funded Count
+             * @default 0
+             */
+            funded_count: number;
+            /**
+             * Deferred Count
+             * @default 0
+             */
+            deferred_count: number;
             /**
              * Exits
              * @default []
@@ -1508,11 +1662,19 @@ export interface components {
         };
         /**
          * Phase3RunRequest
-         * @description Capital basis for sizing. Blank => estimated from the ledger.
+         * @description Sizing inputs for the Monday plan.
+         *
+         *     `portfolio_capital` sets the 10%-per-name position SIZE (blank => estimated
+         *     from the ledger). `available_cash` limits how many of those positions you
+         *     can actually fund Monday (blank => just the exit proceeds — what your sells
+         *     free up). The two are different numbers, and conflating them is what made
+         *     the old plan tell you to deploy money you did not have.
          */
         Phase3RunRequest: {
             /** Portfolio Capital */
             portfolio_capital?: number | null;
+            /** Available Cash */
+            available_cash?: number | null;
         };
         /**
          * PortfolioSlot
@@ -1577,6 +1739,15 @@ export interface components {
             unrealised_pnl_pct?: number | null;
             /** Open Risk */
             open_risk?: number | null;
+            /** Realised Pnl */
+            realised_pnl?: number | null;
+            /** Realised Pnl Pct */
+            realised_pnl_pct?: number | null;
+            /**
+             * Realised Count
+             * @default 0
+             */
+            realised_count: number;
             /**
              * Positions
              * @default []
@@ -2094,6 +2265,207 @@ export interface components {
          * @enum {string}
          */
         StepStatus: "pending" | "in_progress" | "done" | "skipped" | "failed";
+        /** SweepRecord */
+        SweepRecord: {
+            /** Sweep Id */
+            sweep_id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** @default queued */
+            status: components["schemas"]["RunStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Request */
+            request?: {
+                [key: string]: unknown;
+            };
+            progress?: components["schemas"]["RunProgress"];
+            noise?: components["schemas"]["NoiseFloor"] | null;
+            verdict?: components["schemas"]["SweepVerdict"] | null;
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+        };
+        /** SweepResult */
+        SweepResult: {
+            /** Sweep Id */
+            sweep_id: string;
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
+            noise?: components["schemas"]["NoiseFloor"];
+            verdict?: components["schemas"]["SweepVerdict"];
+            /** Grid */
+            grid?: components["schemas"]["SweepResultRow"][];
+            /** Limitations */
+            limitations?: string[];
+        };
+        /** SweepResultRow */
+        SweepResultRow: {
+            /** Formula */
+            formula: string;
+            /** Train Cagr */
+            train_cagr: number;
+            /** Train Sharpe */
+            train_sharpe: number;
+            /** Test Cagr */
+            test_cagr: number;
+            /** Test Sharpe */
+            test_sharpe: number;
+            /** Test Maxdd */
+            test_maxdd: number;
+            /** Test Turnover */
+            test_turnover: number;
+        };
+        /**
+         * SweepRunRequest
+         * @description Configure a walk-forward formula sweep over one universe (or a mix).
+         */
+        SweepRunRequest: {
+            /** Universe Id */
+            universe_id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Index Id
+             * @default midsmall400
+             */
+            index_id: string;
+            /**
+             * Filter Id
+             * @default st_1_2_5
+             */
+            filter_id: string;
+            /**
+             * Train End
+             * Format: date
+             * @default 2016-12-31
+             */
+            train_end: string;
+            /**
+             * Test Start
+             * Format: date
+             * @default 2017-01-01
+             */
+            test_start: string;
+            /**
+             * Weight Step
+             * @default 20
+             */
+            weight_step: number;
+            /**
+             * Noise Samples
+             * @default 120
+             */
+            noise_samples: number;
+            /**
+             * Cost Bps
+             * @default 30
+             */
+            cost_bps: number;
+            /**
+             * Slippage Bps
+             * @default 25
+             */
+            slippage_bps: number;
+        };
+        /**
+         * SweepVerdict
+         * @description The honest read of a sweep — the numbers that expose self-deception.
+         *
+         *     Reported together on purpose. `winner_test_cagr` alone is the misleading
+         *     headline; the percentile and beat-rate are what say whether SELECTION did
+         *     anything, or whether the baseline was simply weak for this period.
+         */
+        SweepVerdict: {
+            /**
+             * Baseline Formula
+             * @default
+             */
+            baseline_formula: string;
+            /**
+             * Baseline Train Cagr
+             * @default 0
+             */
+            baseline_train_cagr: number;
+            /**
+             * Baseline Test Cagr
+             * @default 0
+             */
+            baseline_test_cagr: number;
+            /**
+             * Winner Formula
+             * @default
+             */
+            winner_formula: string;
+            /**
+             * Winner Train Cagr
+             * @default 0
+             */
+            winner_train_cagr: number;
+            /**
+             * Winner Test Cagr
+             * @default 0
+             */
+            winner_test_cagr: number;
+            /**
+             * Winner Test Percentile
+             * @default 0
+             */
+            winner_test_percentile: number;
+            /**
+             * Winner Train Edge
+             * @default 0
+             */
+            winner_train_edge: number;
+            /**
+             * Winner Test Edge
+             * @default 0
+             */
+            winner_test_edge: number;
+            /**
+             * Pct Beating Baseline Test
+             * @default 0
+             */
+            pct_beating_baseline_test: number;
+            /**
+             * Median Test Cagr
+             * @default 0
+             */
+            median_test_cagr: number;
+            /**
+             * Best Possible Test Cagr
+             * @default 0
+             */
+            best_possible_test_cagr: number;
+            /**
+             * Train Test Corr
+             * @default 0
+             */
+            train_test_corr: number;
+            /**
+             * Formulas Tried
+             * @default 0
+             */
+            formulas_tried: number;
+        };
         /**
          * SymbolLookup
          * @description Best-effort auto-fill when the user types a symbol.
@@ -2499,6 +2871,198 @@ export interface operations {
             header?: never;
             path: {
                 universe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sweeps_api_backtest_sweeps_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SweepRecord"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_sweep_api_backtest_sweeps_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SweepRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SweepRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sweep_api_backtest_sweeps__sweep_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sweep_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SweepRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_sweep_api_backtest_sweeps__sweep_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sweep_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sweep_result_api_backtest_sweeps__sweep_id__result_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sweep_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SweepResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_sweep_api_backtest_sweeps__sweep_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sweep_id: string;
             };
             cookie?: never;
         };

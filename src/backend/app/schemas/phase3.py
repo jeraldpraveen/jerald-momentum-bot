@@ -35,16 +35,28 @@ class BuyOrder(BaseModel):
     rank: int
     sector: str = ""
     target_weight_pct: float = 10.0
-    target_value: Optional[float] = None      # weight x capital
+    target_value: Optional[float] = None      # weight x capital (the full 10% size)
     last_close: Optional[float] = None
     indicative_qty: Optional[int] = None      # target_value / last close
     indicative_stop: Optional[float] = None   # last close x 0.80 (actual = fill x 0.80)
+    # Cash-awareness: buys are funded in rank order up to the cash you actually
+    # have. A name that does not fit is deferred, not silently over-deployed.
+    funded: bool = True
+    defer_reason: str = ""                     # e.g. "insufficient cash"
 
 
 class Phase3RunRequest(BaseModel):
-    """Capital basis for sizing. Blank => estimated from the ledger."""
+    """Sizing inputs for the Monday plan.
+
+    `portfolio_capital` sets the 10%-per-name position SIZE (blank => estimated
+    from the ledger). `available_cash` limits how many of those positions you
+    can actually fund Monday (blank => just the exit proceeds — what your sells
+    free up). The two are different numbers, and conflating them is what made
+    the old plan tell you to deploy money you did not have.
+    """
 
     portfolio_capital: Optional[float] = None
+    available_cash: Optional[float] = None
 
 
 class Phase3Output(BaseModel):
@@ -53,6 +65,13 @@ class Phase3Output(BaseModel):
     capital_basis: Optional[float] = None
     capital_source: str = ""                  # "entered" | "estimated from ledger"
     stop_pct: float = 20.0
+
+    available_cash: Optional[float] = None     # what can actually be deployed Monday
+    cash_source: str = ""                      # "entered" | "from exits"
+    deployable: Optional[float] = None         # sum of funded buys
+    leftover_cash: Optional[float] = None      # freed but not deployed (a slot short)
+    funded_count: int = 0
+    deferred_count: int = 0
 
     exits: list[ExitOrder] = []
     buys: list[BuyOrder] = []

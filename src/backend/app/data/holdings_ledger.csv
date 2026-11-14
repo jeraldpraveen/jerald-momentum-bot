@@ -1,6 +1,1 @@
-symbol,qty,entry_price,entry_date,stop_price,sleeve,sector,status,exit_reason,marked_on
-SANSERA,25,3239.52,2026-07-17,2591.6,MIDSMALLCAP400,Auto Components,ACTIVE,,
-TMB,100,791.82,2026-07-17,639.6,MIDSMALLCAP400,Banking,ACTIVE,,
-KIRLOSENG,33,2324.33,2026-07-17,1882.4,MIDSMALLCAP400,Industrial Machinery,ACTIVE,,
-SONACOMS,115,677.59,2026-07-17,536.7,MIDSMALLCAP400,Auto Components,ACTIVE,,
-ATHERENERG,65,1282.8,2026-07-17,1026.3,MIDSMALLCAP400,Auto,ACTIVE,,
+symbol,qty,entry_price,entry_date,stop_price,sleeve,sector,status,exit_reason,marked_on,exit_price,entry_charges,exit_charges

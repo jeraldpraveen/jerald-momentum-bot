@@ -1,0 +1,50 @@
+{
+  "sweep_id": "20260724-131946",
+  "label": "",
+  "status": "done",
+  "created_at": "2026-07-24T13:19:46.650717",
+  "updated_at": "2026-07-24T13:37:32.685722",
+  "request": {
+    "universe_id": "smallcap250",
+    "label": "",
+    "index_id": "nifty500",
+    "filter_id": "st_1_2_5",
+    "train_end": "2016-12-31",
+    "test_start": "2017-01-01",
+    "weight_step": 20,
+    "noise_samples": 120,
+    "cost_bps": 30.0,
+    "slippage_bps": 25.0
+  },
+  "progress": {
+    "done": 1,
+    "total": 1,
+    "pct": 100.0,
+    "detail": "complete"
+  },
+  "noise": {
+    "n": 120,
+    "min_cagr": 6.98,
+    "max_cagr": 13.63,
+    "mean_cagr": 10.94,
+    "std_cagr": 1.33,
+    "spread": 6.65
+  },
+  "verdict": {
+    "baseline_formula": "((60% * 6 Month Performance) + (30% * 3 Month Performance) + (10% * 1 Month Performance)) / (3 Month Volatility + 1 Month Volatility)",
+    "baseline_train_cagr": 11.59,
+    "baseline_test_cagr": 19.6,
+    "winner_formula": "((40% * 6 Month Performance) + (20% * 3 Month Performance) + (40% * 1 Month Performance)) / (6 Month Volatility)",
+    "winner_train_cagr": 12.9,
+    "winner_test_cagr": 23.86,
+    "winner_test_percentile": 88.1,
+    "winner_train_edge": 1.31,
+    "winner_test_edge": 4.26,
+    "pct_beating_baseline_test": 66.7,
+    "median_test_cagr": 20.41,
+    "best_possible_test_cagr": 26.41,
+    "train_test_corr": 0.23,
+    "formulas_tried": 84
+  },
+  "error": ""
+}

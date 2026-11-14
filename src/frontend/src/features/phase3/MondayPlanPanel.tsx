@@ -22,23 +22,29 @@ export function MondayPlanPanel({ cycle, onCycleChange }: Props) {
   const [capital, setCapital] = useState<string>(
     out?.capital_source === "entered" && out.capital_basis ? String(out.capital_basis) : ""
   );
+  const [cash, setCash] = useState<string>(
+    out?.cash_source === "entered" && out.available_cash ? String(out.available_cash) : ""
+  );
   const [busy, setBusy] = useState<null | "run" | "advance">(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (out?.capital_source === "entered" && out.capital_basis) setCapital(String(out.capital_basis));
-  }, [out?.capital_basis, out?.capital_source]);
+    if (out?.cash_source === "entered" && out.available_cash) setCash(String(out.available_cash));
+  }, [out?.capital_basis, out?.capital_source, out?.available_cash, out?.cash_source]);
 
-  const entered = capital.trim() === "" ? null : Number(capital);
-  const pending = !!out &&
-    (out.capital_source === "entered" ? entered !== out.capital_basis : entered !== null);
+  const enteredCapital = capital.trim() === "" ? null : Number(capital);
+  const enteredCash = cash.trim() === "" ? null : Number(cash);
+  const pending = !!out && (
+    (out.capital_source === "entered" ? enteredCapital !== out.capital_basis : enteredCapital !== null)
+    || (out.cash_source === "entered" ? enteredCash !== out.available_cash : enteredCash !== null));
 
   async function act(kind: "run" | "advance") {
     setBusy(kind);
     setError(null);
     try {
       onCycleChange(kind === "run"
-        ? await api.runPhase3({ portfolio_capital: entered })
+        ? await api.runPhase3({ portfolio_capital: enteredCapital, available_cash: enteredCash })
         : await api.advancePhase3());
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : String(e));
@@ -62,6 +68,14 @@ export function MondayPlanPanel({ cycle, onCycleChange }: Props) {
           <input type="number" min={0} step={1000} value={capital} disabled={done}
                  placeholder="blank = estimate from ledger"
                  onChange={(e) => setCapital(e.target.value)} />
+          <span className="field-hint">sets the 10%-per-name position size</span>
+        </label>
+        <label>
+          <span>Cash to deploy (₹)</span>
+          <input type="number" min={0} step={1000} value={cash} disabled={done}
+                 placeholder="blank = capital − kept holdings"
+                 onChange={(e) => setCash(e.target.value)} />
+          <span className="field-hint">limits how many buys you can fund</span>
         </label>
       </div>
 
@@ -89,10 +103,34 @@ export function MondayPlanPanel({ cycle, onCycleChange }: Props) {
           <div className="scan-summary">
             {out.as_of} ·{" "}
             <span className={out.regime === "GREEN" ? "tag-keep" : "tag-exit"}>{out.regime}</span>{" "}
-            · {out.exits.length} exit(s), {out.buys.length} buy(s) · capital{" "}
+            · {out.exits.length} exit(s), {out.funded_count} buy(s)
+            {out.deferred_count > 0 && <>, {out.deferred_count} deferred</>} · capital{" "}
             {inr(out.capital_basis)}{out.capital_source && <span className="muted"> ({out.capital_source})</span>}
-            {out.est_proceeds != null && <> · proceeds ~{inr(out.est_proceeds)}</>}
-            {out.est_deployment != null && <> · deploy ~{inr(out.est_deployment)}</>}
+          </div>
+
+          <div className="port-stats">
+            <div className="stat">
+              <span className="stat-label">Cash to deploy</span>
+              <span className="stat-value">{inr(out.available_cash)}</span>
+              <span className="stat-note">{out.cash_source}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Deploying</span>
+              <span className="stat-value">{inr(out.deployable)}</span>
+              <span className="stat-note">{out.funded_count} name(s) at ~10%</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Left in cash</span>
+              <span className="stat-value">{inr(out.leftover_cash)}</span>
+              <span className="stat-note">a slot short — park it</span>
+            </div>
+            {out.deferred_count > 0 && (
+              <div className="stat">
+                <span className="stat-label">Deferred</span>
+                <span className="stat-value v-strike">{out.deferred_count}</span>
+                <span className="stat-note">no cash this week</span>
+              </div>
+            )}
           </div>
 
           {out.warnings.map((w, i) => <p key={i} className="stale-hint">{w}</p>)}
@@ -151,15 +189,18 @@ export function MondayPlanPanel({ cycle, onCycleChange }: Props) {
                   </thead>
                   <tbody>
                     {out.buys.map((b) => (
-                      <tr key={b.symbol}>
+                      <tr key={b.symbol} className={b.funded ? "" : "row-ineligible"}>
                         <td className="num">{b.rank}</td>
-                        <td><span className="tag-keep">{b.symbol}</span></td>
+                        <td>
+                          <span className={b.funded ? "tag-keep" : "tag-exit"}>{b.symbol}</span>
+                          {!b.funded && <span className="muted"> · {b.defer_reason}</span>}
+                        </td>
                         <td>{b.sector}</td>
                         <td className="num">~{b.target_weight_pct}%</td>
                         <td className="num">{inr(b.target_value)}</td>
                         <td className="num">{b.last_close ?? "—"}</td>
-                        <td className="num">{b.indicative_qty ?? "—"}</td>
-                        <td className="num">{b.indicative_stop ?? "—"}</td>
+                        <td className="num">{b.funded ? (b.indicative_qty ?? "—") : "—"}</td>
+                        <td className="num">{b.funded ? (b.indicative_stop ?? "—") : "—"}</td>
                       </tr>
                     ))}
                   </tbody>

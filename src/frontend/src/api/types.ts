@@ -123,6 +123,9 @@ export interface Holding {
   status: HoldingStatus;
   exit_reason: string;
   marked_on: string;
+  exit_price: number | null;
+  entry_charges: number | null;
+  exit_charges: number | null;
 }
 
 export interface PositionValue {
@@ -153,6 +156,9 @@ export interface PortfolioSummary {
   unrealised_pnl: number | null;
   unrealised_pnl_pct: number | null;
   open_risk: number | null;
+  realised_pnl: number | null;
+  realised_pnl_pct: number | null;
+  realised_count: number;
   positions: PositionValue[];
   incomplete: string[];
   unpriced: string[];
@@ -343,6 +349,8 @@ export interface BuyOrder {
   last_close: number | null;
   indicative_qty: number | null;
   indicative_stop: number | null;
+  funded: boolean;
+  defer_reason: string;
 }
 
 export interface Phase3Output {
@@ -350,6 +358,12 @@ export interface Phase3Output {
   regime: string;
   capital_basis: number | null;
   capital_source: string;
+  available_cash: number | null;
+  cash_source: string;
+  deployable: number | null;
+  leftover_cash: number | null;
+  funded_count: number;
+  deferred_count: number;
   stop_pct: number;
   exits: ExitOrder[];
   buys: BuyOrder[];
@@ -561,5 +575,80 @@ export interface BacktestRunRequest {
   veto_rank_window?: number | null;
   alt_asset_id?: string | null;
   alt_allocation_pct?: number;
+  cash_yield_pct?: number;
   fetch_prices?: boolean;
+}
+
+// --- Formula sweeps (walk-forward optimisation) ---
+export interface NoiseFloor {
+  n: number;
+  min_cagr: number;
+  max_cagr: number;
+  mean_cagr: number;
+  std_cagr: number;
+  spread: number;
+}
+
+// Every field here ships with every winner, on purpose: the bare CAGR is the
+// misleading headline, and these are what say whether selection did anything.
+export interface SweepVerdict {
+  baseline_formula: string;
+  baseline_train_cagr: number;
+  baseline_test_cagr: number;
+  winner_formula: string;
+  winner_train_cagr: number;
+  winner_test_cagr: number;
+  winner_test_percentile: number;
+  winner_train_edge: number;
+  winner_test_edge: number;
+  pct_beating_baseline_test: number;
+  median_test_cagr: number;
+  best_possible_test_cagr: number;
+  train_test_corr: number;
+  formulas_tried: number;
+}
+
+export interface SweepRecord {
+  sweep_id: string;
+  label: string;
+  status: RunStatus;
+  created_at: string;
+  updated_at: string;
+  request: Record<string, unknown>;
+  progress: RunProgress;
+  noise: NoiseFloor | null;
+  verdict: SweepVerdict | null;
+  error: string;
+}
+
+export interface SweepResultRow {
+  formula: string;
+  train_cagr: number;
+  train_sharpe: number;
+  test_cagr: number;
+  test_sharpe: number;
+  test_maxdd: number;
+  test_turnover: number;
+}
+
+export interface SweepResult {
+  sweep_id: string;
+  config: Record<string, unknown>;
+  noise: NoiseFloor;
+  verdict: SweepVerdict;
+  grid: SweepResultRow[];
+  limitations: string[];
+}
+
+export interface SweepRunRequest {
+  universe_id: string;
+  label?: string;
+  index_id?: string;
+  filter_id?: string;
+  train_end?: string;
+  test_start?: string;
+  weight_step?: number;
+  noise_samples?: number;
+  cost_bps?: number;
+  slippage_bps?: number;
 }

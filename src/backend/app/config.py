@@ -116,7 +116,13 @@ ALT_ASSET_OPTIONS: list[AltAssetOption] = [
     AltAssetOption("silver", "Silver (SILVERBEES)", "SILVERBEES.NS",
                    "far shorter history — 2022 onward only", "2022-02-04"),
     AltAssetOption("liquid", "Liquid fund (LIQUIDBEES)", "LIQUIDBEES.NS",
-                   "the honest baseline: near-zero risk, ~6-7%/yr", "2009-01-02"),
+                   "near-zero risk, but yfinance under-captures its dividends — "
+                   "use the fixed cash yield below instead", "2009-01-02"),
+    AltAssetOption("gilt_long", "Long-term gilt (LTGILTBEES)", "LTGILTBEES.NS",
+                   "a bond ETF — but NOT fixed-return: duration risk, and data "
+                   "only from 2018 (misses pre-2018 RED weeks)", "2018-05-11"),
+    AltAssetOption("gilt_5y", "5-year gilt (GILT5YBEES)", "GILT5YBEES.NS",
+                   "shorter-duration bond; data only from 2021", "2021-04-07"),
 ]
 
 

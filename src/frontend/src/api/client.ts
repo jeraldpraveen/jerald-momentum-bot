@@ -14,6 +14,9 @@ import type {
   RegimeOptions,
   RunRecord,
   ScannerFilters,
+  SweepRecord,
+  SweepResult,
+  SweepRunRequest,
   SymbolLookup,
   UniverseOption,
   UniverseSummary,
@@ -147,7 +150,7 @@ export const api = {
   advanceJournal: () =>
     request<Cycle>("/api/cycles/current/steps/part-e/advance", { method: "POST" }),
 
-  runPhase3: (body: { portfolio_capital: number | null }) =>
+  runPhase3: (body: { portfolio_capital: number | null; available_cash: number | null }) =>
     request<Cycle>("/api/cycles/current/steps/phase3/run", {
       method: "POST",
       body: JSON.stringify(body),
@@ -190,6 +193,25 @@ export const api = {
 
   deleteBacktestRun: (runId: string) =>
     request<{ deleted: string }>(`/api/backtest/runs/${encodeURIComponent(runId)}`,
+      { method: "DELETE" }),
+
+  // --- formula sweeps ---
+  startSweep: (body: SweepRunRequest) =>
+    request<SweepRecord>("/api/backtest/sweeps", {
+      method: "POST", body: JSON.stringify(body),
+    }),
+
+  listSweeps: () => request<SweepRecord[]>("/api/backtest/sweeps"),
+
+  getSweepResult: (id: string) =>
+    request<SweepResult>(`/api/backtest/sweeps/${encodeURIComponent(id)}/result`),
+
+  cancelSweep: (id: string) =>
+    request<{ cancelling: boolean }>(`/api/backtest/sweeps/${encodeURIComponent(id)}/cancel`,
+      { method: "POST" }),
+
+  deleteSweep: (id: string) =>
+    request<{ deleted: string }>(`/api/backtest/sweeps/${encodeURIComponent(id)}`,
       { method: "DELETE" }),
 
   advancePartC: () =>

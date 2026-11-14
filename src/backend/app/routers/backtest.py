@@ -15,9 +15,12 @@ from ..schemas.backtest import (
     BuildUniverseRequest,
     IndexCoverage,
     RunRecord,
+    SweepRecord,
+    SweepResult,
+    SweepRunRequest,
     UniverseSummary,
 )
-from ..services import backtest_service
+from ..services import backtest_service, sweep_service
 
 router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
@@ -62,6 +65,49 @@ def delete_universe(universe_id: str) -> dict:
     if not backtest_service.delete_universe(universe_id):
         raise HTTPException(status_code=404, detail=f"No universe {universe_id!r}.")
     return {"deleted": universe_id}
+
+
+# --- sweeps (walk-forward formula search) ------------------------------------
+
+@router.post("/sweeps", response_model=SweepRecord, status_code=status.HTTP_202_ACCEPTED)
+def start_sweep(body: SweepRunRequest) -> SweepRecord:
+    """Queue a walk-forward sweep. Always measures the noise floor first."""
+    return sweep_service.start_sweep(body)
+
+
+@router.get("/sweeps", response_model=list[SweepRecord])
+def list_sweeps(limit: int = 50) -> list[SweepRecord]:
+    return sweep_service.list_sweeps(limit)
+
+
+@router.get("/sweeps/{sweep_id}", response_model=SweepRecord)
+def get_sweep(sweep_id: str) -> SweepRecord:
+    rec = sweep_service.get_sweep(sweep_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail=f"No sweep {sweep_id!r}.")
+    return rec
+
+
+@router.get("/sweeps/{sweep_id}/result", response_model=SweepResult)
+def get_sweep_result(sweep_id: str) -> SweepResult:
+    res = sweep_service.get_result(sweep_id)
+    if res is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No result for sweep {sweep_id!r} — still running, or it failed.")
+    return res
+
+
+@router.post("/sweeps/{sweep_id}/cancel", response_model=dict)
+def cancel_sweep(sweep_id: str) -> dict:
+    return {"cancelling": sweep_service.cancel_sweep(sweep_id)}
+
+
+@router.delete("/sweeps/{sweep_id}")
+def delete_sweep(sweep_id: str) -> dict:
+    if not sweep_service.delete_sweep(sweep_id):
+        raise HTTPException(status_code=404, detail=f"No sweep {sweep_id!r}.")
+    return {"deleted": sweep_id}
 
 
 # --- runs -------------------------------------------------------------------

@@ -85,6 +85,7 @@ def run_backtest(
     veto_rank_window: int | None = None,
     alt_asset_id: str | None = None,
     alt_allocation_pct: float = 100.0,
+    cash_yield_pct: float = 0.0,
     progress=None,
 ) -> dict:
     """Simulate the strategy week by week. Returns a result dict (JSON-ready)."""
@@ -143,6 +144,7 @@ def run_backtest(
     sleeve_of = {m.symbol: m.sleeve for m in members}
     micro = universe.microcap_symbols(members)
 
+    weekly_cash_yield = (1 + cash_yield_pct / 100) ** (1 / metrics_mod.WEEKS_PER_YEAR) - 1
     pf = Portfolio(cash=starting_capital, costs=costs)
     equity_rows: list[dict] = []
     weekly_log: list[dict] = []
@@ -247,6 +249,10 @@ def run_backtest(
         stop_hits = _apply_stops(pf, tickers, monday, next_friday, traded_value)
         traded_value = stop_hits["traded_value"]
 
+        # --- interest on idle cash (a fixed-yield parking baseline) --------
+        if weekly_cash_yield and pf.cash > 0:
+            pf.cash *= 1 + weekly_cash_yield
+
         # --- mark to market at the next Friday close ----------------------
         mark_date = next_friday or friday
         mark_prices = {
@@ -278,6 +284,7 @@ def run_backtest(
         index_daily=index_daily, fridays=fridays, starting_capital=starting_capital,
         universe_id=universe_id, index_opt=index_opt, filt=filt, formula=formula,
         alt_opt=alt_opt, alt_allocation_pct=alt_allocation_pct, clipped=clipped,
+        cash_yield_pct=cash_yield_pct,
         requested_start=start,
         position_weight_pct=position_weight_pct, stop_multiplier=stop_multiplier,
         cost_bps=cost_bps, slippage_bps=slippage_bps, members=members,
@@ -317,7 +324,7 @@ def _assemble(pf, equity_rows, weekly_log, exposure, traded_value, *, index_dail
               fridays, starting_capital, universe_id, index_opt, filt, formula,
               position_weight_pct, stop_multiplier, cost_bps, slippage_bps, members,
               alt_opt=None, alt_allocation_pct=100.0, clipped=None,
-              requested_start=None) -> dict:
+              requested_start=None, cash_yield_pct=0.0) -> dict:
     curve = pd.Series(
         [r["equity"] for r in equity_rows],
         index=pd.to_datetime([r["date"] for r in equity_rows]),
@@ -348,6 +355,7 @@ def _assemble(pf, equity_rows, weekly_log, exposure, traded_value, *, index_dail
             "alt_asset_id": alt_opt.id if alt_opt else None,
             "alt_asset_label": alt_opt.label if alt_opt else "",
             "alt_allocation_pct": alt_allocation_pct if alt_opt else 0.0,
+            "cash_yield_pct": cash_yield_pct,
         },
         "metrics": m.as_dict(),
         "benchmark": bench.as_dict(),

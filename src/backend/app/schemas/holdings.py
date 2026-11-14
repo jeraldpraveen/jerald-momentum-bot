@@ -25,6 +25,9 @@ class Holding(BaseModel):
     status: HoldingStatus = "ACTIVE"
     exit_reason: str = ""
     marked_on: str = ""
+    exit_price: Optional[float] = None    # the price you actually sold at (EXITED)
+    entry_charges: Optional[float] = None # brokerage + taxes paid on the BUY
+    exit_charges: Optional[float] = None  # brokerage + taxes paid on the SELL
 
 
 class HoldingsSaveRequest(BaseModel):
@@ -70,6 +73,11 @@ class PortfolioSummary(BaseModel):
     unrealised_pnl: Optional[float] = None
     unrealised_pnl_pct: Optional[float] = None
     open_risk: Optional[float] = None           # total loss if every stop fired
+
+    # Realised P&L from EXITED positions that carry an exit price.
+    realised_pnl: Optional[float] = None
+    realised_pnl_pct: Optional[float] = None
+    realised_count: int = 0                      # EXITED rows with an exit price
 
     positions: list[PositionValue] = []
     incomplete: list[str] = []                  # missing qty or entry price

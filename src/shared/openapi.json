@@ -386,6 +386,263 @@
         }
       }
     },
+    "/api/backtest/sweeps": {
+      "post": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Start Sweep",
+        "description": "Queue a walk-forward sweep. Always measures the noise floor first.",
+        "operationId": "start_sweep_api_backtest_sweeps_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SweepRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "List Sweeps",
+        "operationId": "list_sweeps_api_backtest_sweeps_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SweepRecord"
+                  },
+                  "title": "Response List Sweeps Api Backtest Sweeps Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/sweeps/{sweep_id}": {
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Get Sweep",
+        "operationId": "get_sweep_api_backtest_sweeps__sweep_id__get",
+        "parameters": [
+          {
+            "name": "sweep_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sweep Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Delete Sweep",
+        "operationId": "delete_sweep_api_backtest_sweeps__sweep_id__delete",
+        "parameters": [
+          {
+            "name": "sweep_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sweep Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Sweep Api Backtest Sweeps  Sweep Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/sweeps/{sweep_id}/result": {
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Get Sweep Result",
+        "operationId": "get_sweep_result_api_backtest_sweeps__sweep_id__result_get",
+        "parameters": [
+          {
+            "name": "sweep_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sweep Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/sweeps/{sweep_id}/cancel": {
+      "post": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "Cancel Sweep",
+        "operationId": "cancel_sweep_api_backtest_sweeps__sweep_id__cancel_post",
+        "parameters": [
+          {
+            "name": "sweep_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sweep Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Cancel Sweep Api Backtest Sweeps  Sweep Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/backtest/runs": {
       "post": {
         "tags": [
@@ -1764,6 +2021,13 @@
             "title": "Alt Allocation Pct",
             "default": 100.0
           },
+          "cash_yield_pct": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Cash Yield Pct",
+            "default": 0.0
+          },
           "fetch_prices": {
             "type": "boolean",
             "title": "Fetch Prices",
@@ -1860,6 +2124,16 @@
               }
             ],
             "title": "Indicative Stop"
+          },
+          "funded": {
+            "type": "boolean",
+            "title": "Funded",
+            "default": true
+          },
+          "defer_reason": {
+            "type": "string",
+            "title": "Defer Reason",
+            "default": ""
           }
         },
         "type": "object",
@@ -2533,6 +2807,39 @@
             "type": "string",
             "title": "Marked On",
             "default": ""
+          },
+          "exit_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Price"
+          },
+          "entry_charges": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Charges"
+          },
+          "exit_charges": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Charges"
           }
         },
         "type": "object",
@@ -3006,6 +3313,43 @@
         ],
         "title": "JournalStrikeout"
       },
+      "NoiseFloor": {
+        "properties": {
+          "n": {
+            "type": "integer",
+            "title": "N",
+            "default": 0
+          },
+          "min_cagr": {
+            "type": "number",
+            "title": "Min Cagr",
+            "default": 0.0
+          },
+          "max_cagr": {
+            "type": "number",
+            "title": "Max Cagr",
+            "default": 0.0
+          },
+          "mean_cagr": {
+            "type": "number",
+            "title": "Mean Cagr",
+            "default": 0.0
+          },
+          "std_cagr": {
+            "type": "number",
+            "title": "Std Cagr",
+            "default": 0.0
+          },
+          "spread": {
+            "type": "number",
+            "title": "Spread",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "NoiseFloor",
+        "description": "How much CAGR spread random formulas produce on the SAME data.\n\nThe reference every optimised result must be read against: an improvement\nsmaller than this is indistinguishable from luck."
+      },
       "PartBRunRequest": {
         "properties": {
           "universe_ids": {
@@ -3079,6 +3423,54 @@
             "type": "number",
             "title": "Stop Pct",
             "default": 20.0
+          },
+          "available_cash": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Cash"
+          },
+          "cash_source": {
+            "type": "string",
+            "title": "Cash Source",
+            "default": ""
+          },
+          "deployable": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deployable"
+          },
+          "leftover_cash": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leftover Cash"
+          },
+          "funded_count": {
+            "type": "integer",
+            "title": "Funded Count",
+            "default": 0
+          },
+          "deferred_count": {
+            "type": "integer",
+            "title": "Deferred Count",
+            "default": 0
           },
           "exits": {
             "items": {
@@ -3162,11 +3554,22 @@
               }
             ],
             "title": "Portfolio Capital"
+          },
+          "available_cash": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Cash"
           }
         },
         "type": "object",
         "title": "Phase3RunRequest",
-        "description": "Capital basis for sizing. Blank => estimated from the ledger."
+        "description": "Sizing inputs for the Monday plan.\n\n`portfolio_capital` sets the 10%-per-name position SIZE (blank => estimated\nfrom the ledger). `available_cash` limits how many of those positions you\ncan actually fund Monday (blank => just the exit proceeds \u2014 what your sells\nfree up). The two are different numbers, and conflating them is what made\nthe old plan tell you to deploy money you did not have."
       },
       "PortfolioSlot": {
         "properties": {
@@ -3277,6 +3680,33 @@
               }
             ],
             "title": "Open Risk"
+          },
+          "realised_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realised Pnl"
+          },
+          "realised_pnl_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realised Pnl Pct"
+          },
+          "realised_count": {
+            "type": "integer",
+            "title": "Realised Count",
+            "default": 0
           },
           "positions": {
             "items": {
@@ -4763,6 +5193,296 @@
           "failed"
         ],
         "title": "StepStatus"
+      },
+      "SweepRecord": {
+        "properties": {
+          "sweep_id": {
+            "type": "string",
+            "title": "Sweep Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus",
+            "default": "queued"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "request": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Request"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/RunProgress"
+          },
+          "noise": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoiseFloor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SweepVerdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "type": "string",
+            "title": "Error",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "sweep_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SweepRecord"
+      },
+      "SweepResult": {
+        "properties": {
+          "sweep_id": {
+            "type": "string",
+            "title": "Sweep Id"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          },
+          "noise": {
+            "$ref": "#/components/schemas/NoiseFloor"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/SweepVerdict"
+          },
+          "grid": {
+            "items": {
+              "$ref": "#/components/schemas/SweepResultRow"
+            },
+            "type": "array",
+            "title": "Grid"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sweep_id"
+        ],
+        "title": "SweepResult"
+      },
+      "SweepResultRow": {
+        "properties": {
+          "formula": {
+            "type": "string",
+            "title": "Formula"
+          },
+          "train_cagr": {
+            "type": "number",
+            "title": "Train Cagr"
+          },
+          "train_sharpe": {
+            "type": "number",
+            "title": "Train Sharpe"
+          },
+          "test_cagr": {
+            "type": "number",
+            "title": "Test Cagr"
+          },
+          "test_sharpe": {
+            "type": "number",
+            "title": "Test Sharpe"
+          },
+          "test_maxdd": {
+            "type": "number",
+            "title": "Test Maxdd"
+          },
+          "test_turnover": {
+            "type": "number",
+            "title": "Test Turnover"
+          }
+        },
+        "type": "object",
+        "required": [
+          "formula",
+          "train_cagr",
+          "train_sharpe",
+          "test_cagr",
+          "test_sharpe",
+          "test_maxdd",
+          "test_turnover"
+        ],
+        "title": "SweepResultRow"
+      },
+      "SweepRunRequest": {
+        "properties": {
+          "universe_id": {
+            "type": "string",
+            "title": "Universe Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "index_id": {
+            "type": "string",
+            "title": "Index Id",
+            "default": "midsmall400"
+          },
+          "filter_id": {
+            "type": "string",
+            "title": "Filter Id",
+            "default": "st_1_2_5"
+          },
+          "train_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Train End",
+            "default": "2016-12-31"
+          },
+          "test_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Test Start",
+            "default": "2017-01-01"
+          },
+          "weight_step": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 5.0,
+            "title": "Weight Step",
+            "default": 20
+          },
+          "noise_samples": {
+            "type": "integer",
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Noise Samples",
+            "default": 120
+          },
+          "cost_bps": {
+            "type": "number",
+            "title": "Cost Bps",
+            "default": 30.0
+          },
+          "slippage_bps": {
+            "type": "number",
+            "title": "Slippage Bps",
+            "default": 25.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "universe_id"
+        ],
+        "title": "SweepRunRequest",
+        "description": "Configure a walk-forward formula sweep over one universe (or a mix)."
+      },
+      "SweepVerdict": {
+        "properties": {
+          "baseline_formula": {
+            "type": "string",
+            "title": "Baseline Formula",
+            "default": ""
+          },
+          "baseline_train_cagr": {
+            "type": "number",
+            "title": "Baseline Train Cagr",
+            "default": 0.0
+          },
+          "baseline_test_cagr": {
+            "type": "number",
+            "title": "Baseline Test Cagr",
+            "default": 0.0
+          },
+          "winner_formula": {
+            "type": "string",
+            "title": "Winner Formula",
+            "default": ""
+          },
+          "winner_train_cagr": {
+            "type": "number",
+            "title": "Winner Train Cagr",
+            "default": 0.0
+          },
+          "winner_test_cagr": {
+            "type": "number",
+            "title": "Winner Test Cagr",
+            "default": 0.0
+          },
+          "winner_test_percentile": {
+            "type": "number",
+            "title": "Winner Test Percentile",
+            "default": 0.0
+          },
+          "winner_train_edge": {
+            "type": "number",
+            "title": "Winner Train Edge",
+            "default": 0.0
+          },
+          "winner_test_edge": {
+            "type": "number",
+            "title": "Winner Test Edge",
+            "default": 0.0
+          },
+          "pct_beating_baseline_test": {
+            "type": "number",
+            "title": "Pct Beating Baseline Test",
+            "default": 0.0
+          },
+          "median_test_cagr": {
+            "type": "number",
+            "title": "Median Test Cagr",
+            "default": 0.0
+          },
+          "best_possible_test_cagr": {
+            "type": "number",
+            "title": "Best Possible Test Cagr",
+            "default": 0.0
+          },
+          "train_test_corr": {
+            "type": "number",
+            "title": "Train Test Corr",
+            "default": 0.0
+          },
+          "formulas_tried": {
+            "type": "integer",
+            "title": "Formulas Tried",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "SweepVerdict",
+        "description": "The honest read of a sweep \u2014 the numbers that expose self-deception.\n\nReported together on purpose. `winner_test_cagr` alone is the misleading\nheadline; the percentile and beat-rate are what say whether SELECTION did\nanything, or whether the baseline was simply weak for this period."
       },
       "SymbolLookup": {
         "properties": {

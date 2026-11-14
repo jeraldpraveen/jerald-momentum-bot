@@ -6,14 +6,21 @@ const STATUSES: HoldingStatus[] = ["ACTIVE", "PENDING_EXIT", "EXITED"];
 
 const inr = (n: number | null | undefined) =>
   n == null ? "—" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+// Paise precision — for figures you reconcile against a broker statement (Zerodha).
+const inr2 = (n: number | null | undefined) =>
+  n == null ? "—"
+    : `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const signed = (n: number | null | undefined) =>
   n == null ? "—" : `${n < 0 ? "−" : "+"}${inr(Math.abs(n)).slice(1)}`;
+const signed2 = (n: number | null | undefined) =>
+  n == null ? "—" : `${n < 0 ? "−" : "+"}${inr2(Math.abs(n)).slice(1)}`;
 const STOP_PCT = 0.8; // 20% stop below entry (Rulebook)
 
 function blankHolding(): Holding {
   return {
     symbol: "", qty: null, entry_price: null, entry_date: "", stop_price: null,
     sleeve: "", sector: "", status: "ACTIVE", exit_reason: "", marked_on: "",
+    exit_price: null, entry_charges: null, exit_charges: null,
   };
 }
 
@@ -52,10 +59,11 @@ export function CurrentPortfolioPanel({ onSaved }: { onSaved?: () => void }) {
     setRows((rs) => rs.map((r, idx) => {
       if (idx !== i) return r;
       const next = { ...r, ...p };
-      // An ACTIVE position carries no exit metadata — drop any stale reason/date.
+      // An ACTIVE position carries no exit metadata — drop any stale reason/date/price.
       if (next.status === "ACTIVE") {
         next.exit_reason = "";
         next.marked_on = "";
+        next.exit_price = null;
       }
       return next;
     }));
@@ -162,6 +170,19 @@ export function CurrentPortfolioPanel({ onSaved }: { onSaved?: () => void }) {
               <span className="stat-value">{inr(summary.open_risk)}</span>
               <span className="stat-note">if every stop fired</span>
             </div>
+            {summary.realised_count > 0 && (
+              <div className="stat">
+                <span className="stat-label">Realised P&amp;L</span>
+                <span className={`stat-value ${(summary.realised_pnl ?? 0) < 0 ? "v-strike" : "v-pass"}`}>
+                  {signed2(summary.realised_pnl)}
+                </span>
+                <span className="stat-note">
+                  {summary.realised_count} sold
+                  {summary.realised_pnl_pct != null &&
+                    ` · ${summary.realised_pnl_pct > 0 ? "+" : ""}${summary.realised_pnl_pct}%`}
+                </span>
+              </div>
+            )}
           </div>
           {dirty && (
             <p className="stale-hint">
@@ -189,6 +210,7 @@ export function CurrentPortfolioPanel({ onSaved }: { onSaved?: () => void }) {
           <thead>
             <tr>
               <th>Symbol</th><th className="num">Qty</th><th className="num">Entry ₹</th>
+              <th className="num">Buy chg</th>
               <th className="num">LTP</th><th className="num">P&amp;L ₹</th>
               <th className="num">Value</th>
               <th>Entry date</th><th className="num">Stop ₹</th>
@@ -211,6 +233,12 @@ export function CurrentPortfolioPanel({ onSaved }: { onSaved?: () => void }) {
                   <input className="cell w-num" type="number" step="any" value={r.entry_price ?? ""}
                          onChange={(e) => patch(i, { entry_price: numOrNull(e.target.value) })}
                          onBlur={() => applyStop(i)} />
+                </td>
+                <td className="num">
+                  <input className="cell w-num w-stop" type="number" step="any"
+                         value={r.entry_charges ?? ""} placeholder="₹"
+                         title="Brokerage + taxes paid on the buy"
+                         onChange={(e) => patch(i, { entry_charges: numOrNull(e.target.value) })} />
                 </td>
                 {(() => {
                   const v = valueOf(r.symbol);
@@ -269,7 +297,28 @@ export function CurrentPortfolioPanel({ onSaved }: { onSaved?: () => void }) {
                   </select>
                 </td>
                 <td className="flags">
-                  {r.exit_reason
+                  {r.status === "EXITED" ? (
+                    <span className="exit-px-cell">
+                      <span className="exit-px-label">sold @</span>
+                      <input className="cell w-num w-stop" type="number" step="any"
+                             value={r.exit_price ?? ""} placeholder="exit ₹"
+                             onChange={(e) => patch(i, { exit_price: numOrNull(e.target.value) })} />
+                      <span className="exit-px-label">chg</span>
+                      <input className="cell w-num w-stop" type="number" step="any"
+                             value={r.exit_charges ?? ""} placeholder="₹"
+                             title="Brokerage + taxes paid on the sell"
+                             onChange={(e) => patch(i, { exit_charges: numOrNull(e.target.value) })} />
+                      {r.exit_price != null && r.entry_price != null && r.qty != null && (() => {
+                        const net = (r.exit_price - r.entry_price) * r.qty
+                          - (r.entry_charges ?? 0) - (r.exit_charges ?? 0);
+                        return (
+                          <span className={net >= 0 ? " v-pass" : " v-strike"} title="net of charges">
+                            {signed2(net)}
+                          </span>
+                        );
+                      })()}
+                    </span>
+                  ) : r.exit_reason
                     ? `${r.exit_reason}${r.marked_on ? ` · ${r.marked_on}` : ""}`
                     : ""}
                 </td>
@@ -280,7 +329,7 @@ export function CurrentPortfolioPanel({ onSaved }: { onSaved?: () => void }) {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={13} className="muted">No positions yet — add your first one.</td></tr>
+              <tr><td colSpan={14} className="muted">No positions yet — add your first one.</td></tr>
             )}
           </tbody>
         </table>
