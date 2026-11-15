@@ -27,7 +27,10 @@ def test_green_run_leaves_ledger_untouched(isolated, monkeypatch, now_ist):
     # Top-level summary is populated for at-a-glance reading.
     assert cyc.regime_decision is not None
     assert cyc.regime_decision.regime == "GREEN"
-    assert cyc.regime_decision.index == "NIFTY MIDSMALLCAP 400"
+    assert cyc.regime_decision.index == "NIFTY 500"       # the ratified gate (v2.3)
+    assert step.output.ratified_index is True
+    assert step.input["index_id"] == "nifty500"
+    assert not any("UNTESTED GATE" in a for a in step.output.actions)
     assert cyc.regime_decision.filter == "Supertrend (1, 2.5)"
     saved = pd.read_csv(isolated / "holdings_ledger.csv")
     assert (saved["status"] == "ACTIVE").all()
@@ -44,6 +47,8 @@ def test_red_run_is_preview_only(isolated, monkeypatch, now_ist):
     assert out.active_holdings == ["AAA", "BBB"]
     assert out.pending_exit == []
     assert any("On advance" in a for a in out.actions)
+    # v2.3: RED proceeds are parked, never left idle.
+    assert any("park the proceeds in your liquid or overnight fund" in a for a in out.actions)
     saved = pd.read_csv(isolated / "holdings_ledger.csv")
     assert (saved["status"] == "ACTIVE").all()
 
@@ -185,3 +190,37 @@ def test_data_failure_records_failed_step(isolated, monkeypatch, now_ist):
     assert step.status == StepStatus.FAILED
     assert step.output is None
     assert "all providers failed" in step.error
+
+
+# --- Spec v2.3: the ratified gate index --------------------------------------
+
+def test_a_non_ratified_index_is_flagged_as_untested(isolated, monkeypatch, now_ist):
+    """The gate stays a playground, but a decision from an index the backtests
+    never gated on must not look like a ratified one."""
+    _patch(monkeypatch, green_data())
+    cycle_service.create_cycle(now=now_ist)
+    out = regime_gate_service.run(index_id="midsmall400",
+                                  now_ist=now_ist).steps.part_a_regime_gate.output
+
+    assert out.index_label == "NIFTY MIDSMALLCAP 400"
+    assert out.ratified_index is False
+    assert out.actions[0].startswith("UNTESTED GATE — NIFTY MIDSMALLCAP 400")
+    assert "NIFTY 500" in out.actions[0] and "Re-run on the ratified index" in out.actions[0]
+
+
+def test_the_untested_warning_comes_first_on_a_red_week_too(isolated, monkeypatch, now_ist):
+    _patch(monkeypatch, red_data())
+    cycle_service.create_cycle(now=now_ist)
+    out = regime_gate_service.run(index_id="nifty50",
+                                  now_ist=now_ist).steps.part_a_regime_gate.output
+
+    assert out.regime == "RED" and out.ratified_index is False
+    assert out.actions[0].startswith("UNTESTED GATE")
+    assert any("On advance" in a for a in out.actions[1:])
+
+
+def test_a_green_week_carries_no_parking_instruction(isolated, monkeypatch, now_ist):
+    _patch(monkeypatch, green_data())
+    cycle_service.create_cycle(now=now_ist)
+    out = regime_gate_service.run(now_ist=now_ist).steps.part_a_regime_gate.output
+    assert not any("park" in a.lower() for a in out.actions)

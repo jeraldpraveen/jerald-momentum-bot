@@ -53,7 +53,7 @@ def _resolve_universes(universe_ids: list[str]) -> list[tuple[str, str, str]]:
 
 
 def list_sectors(universe_ids: list[str]) -> list[str]:
-    members = _resolve_universes(universe_ids or [config.DEFAULT_UNIVERSE_ID])
+    members = _resolve_universes(universe_ids or list(config.DEFAULT_UNIVERSE_IDS))
     return sorted({sec for _, sec, _ in members if sec and sec != "nan"})
 
 
@@ -68,7 +68,10 @@ def _build_candidates(
     members = _resolve_universes(universe_ids)
     prices = stock_prices.get_prices([t for t, _, _ in members], as_of=filters.as_of)
     as_of = filters.as_of or dt.date.today()
-    return core_build_candidates(members, prices, compiled, filters), as_of
+    # The core judges price staleness against the as-of date, so it always gets
+    # one — a blank date means "today", not "do not check".
+    dated = filters.model_copy(update={"as_of": as_of})
+    return core_build_candidates(members, prices, compiled, dated), as_of
 
 
 def run(body: PartBRunRequest, now_ist: dt.datetime | None = None) -> Cycle:
@@ -80,8 +83,20 @@ def run(body: PartBRunRequest, now_ist: dt.datetime | None = None) -> Cycle:
         from .errors import StepNotReady
         raise StepNotReady("Part B is available only after Part A advances on GREEN.")
 
-    universe_ids = body.universe_ids or [config.DEFAULT_UNIVERSE_ID]
-    formula = body.formula.strip() or scoring_formula.DEFAULT_FORMULA
+    # Spec v2.3: the live score is frozen. A different formula is refused here,
+    # before anything is computed, rather than quietly ranking the week on an
+    # untested score.
+    if not scoring_formula.is_frozen(body.formula):
+        from .errors import FormulaFrozen
+        raise FormulaFrozen(
+            "The live scoring formula is frozen (Spec v2.3) and cannot be changed in "
+            "the Friday ritual. Try alternatives in the Backtest tab; adopting one is "
+            "a Rulebook amendment.",
+            frozen_formula=scoring_formula.FROZEN_FORMULA,
+        )
+
+    universe_ids = body.universe_ids or list(config.DEFAULT_UNIVERSE_IDS)
+    formula = scoring_formula.FROZEN_FORMULA
 
     step = cycle.steps.part_b_scanner
     step.status = StepStatus.IN_PROGRESS

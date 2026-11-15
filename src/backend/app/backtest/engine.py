@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import math
 
 import pandas as pd
 
@@ -31,9 +32,11 @@ from .. import config as app_config
 from ..domain import scoring_formula
 from ..domain import strategy
 from ..schemas.scanner import ScannerFilters
+from . import benchmarks
 from . import config as bt_config
 from . import metrics as metrics_mod
 from . import price_store, universe
+from . import tax as tax_mod
 from .costs import CostModel
 from .portfolio import Portfolio
 
@@ -65,7 +68,10 @@ def _open_price(df: pd.DataFrame | None, on: dt.date) -> float | None:
     if df is None or df.empty:
         return None
     rows = df[df.index.date == on]
-    return float(rows["open"].iloc[0]) if not rows.empty else None
+    if rows.empty:
+        return None
+    price = float(rows["open"].iloc[0])
+    return price if math.isfinite(price) and price > 0 else None
 
 
 def run_backtest(
@@ -85,7 +91,9 @@ def run_backtest(
     veto_rank_window: int | None = None,
     alt_asset_id: str | None = None,
     alt_allocation_pct: float = 100.0,
-    cash_yield_pct: float = 0.0,
+    cash_yield_pct: float = bt_config.CASH_YIELD_PCT,
+    benchmark_id: str | None = None,
+    apply_tax: bool = bt_config.APPLY_TAX,
     progress=None,
 ) -> dict:
     """Simulate the strategy week by week. Returns a result dict (JSON-ready)."""
@@ -108,20 +116,28 @@ def run_backtest(
         raise BacktestError(
             f"No cached history for the index {index_opt.ticker}. Fetch prices first.")
 
+    # Resolve the benchmark BEFORE walking the weeks: a missing total-return
+    # file should fail in a second, not after a two-hour run.
+    try:
+        bench_opt = benchmarks.get_option(benchmark_id, index_opt)
+        bench_daily = benchmarks.series(bench_opt)
+    except benchmarks.BenchmarkError as exc:
+        raise BacktestError(str(exc)) from exc
+
     index_weekly = resample_weekly(index_daily)
     index_days = [d.date() for d in index_daily.index]
 
     # Warm-up: the score needs a year of candles before the first decision.
     warmup_end = index_days[0] + dt.timedelta(days=bt_config.MIN_WARMUP_DAYS)
-    fridays = [d.date() for d in index_weekly.index]
-    fridays = [f for f in fridays if f >= warmup_end]
+    fridays = [d.date() for d in index_weekly.index[1:]]
+    fridays = [f for f in fridays if f >= warmup_end and f <= index_days[-1]]
     if start:
         fridays = [f for f in fridays if f >= start]
     if end:
         fridays = [f for f in fridays if f <= end]
-    if not fridays:
+    if len(fridays) < 2:
         raise BacktestError(
-            "No tradable weeks in that range — try an earlier start, or fetch more history.")
+            "No tradable weeks in that range — at least two weekly marks are needed.")
 
     # Silently starting later than asked is how a "2010-2026" run quietly became
     # a 2025 run. Record the clip so it is reported with the result.
@@ -139,26 +155,38 @@ def run_backtest(
         )
         log.warning(clipped)
 
+    bench_weekly = bench_daily.resample("W-FRI").last().reindex(pd.to_datetime(fridays))
+    if bench_weekly.isna().any():
+        raise BacktestError(
+            f"The benchmark {bench_opt.label} has missing weekly data between "
+            f"{fridays[0].isoformat()} and {fridays[-1].isoformat()}. "
+            "Pick a fully covered date range or another benchmark.")
+
     tickers = [m.ticker for m in members]
     sector_of = {m.symbol: m.sector for m in members}
     sleeve_of = {m.symbol: m.sleeve for m in members}
     micro = universe.microcap_symbols(members)
 
     weekly_cash_yield = (1 + cash_yield_pct / 100) ** (1 / metrics_mod.WEEKS_PER_YEAR) - 1
-    pf = Portfolio(cash=starting_capital, costs=costs)
-    equity_rows: list[dict] = []
+    pf = Portfolio(cash=starting_capital, costs=costs,
+                   tax=tax_mod.TaxLedger() if apply_tax else None)
+    mark_prices: dict[str, float] = {}
+    mark_date = fridays[-1]
+    equity_rows: list[dict] = [{
+        "date": fridays[0].isoformat(), "equity": round(starting_capital, 2),
+        "cash": round(starting_capital, 2), "positions": 0, "regime": "CASH",
+        "alt_value": 0.0,
+    }]
     weekly_log: list[dict] = []
-    exposure: list[bool] = []
+    exposure: list[bool] = [False]
     traded_value = 0.0
 
-    for i, friday in enumerate(fridays):
+    for i, friday in enumerate(fridays[:-1]):
         if progress and i % 10 == 0:
             progress(i, len(fridays), friday)
 
         # --- Friday close: decide -----------------------------------------
         weekly_slice = index_weekly[index_weekly.index.date <= friday]
-        if len(weekly_slice) < 2:
-            continue
         regime, line_label, line_value = strategy.decide_regime(weekly_slice, filt)
 
         prices = price_store.get_many(tickers, as_of=friday)
@@ -166,6 +194,10 @@ def run_backtest(
 
         exits: list[str] = []
         buys: list[strategy.RankedName] = []
+        deferred: list[str] = []
+        unfilled_buys: list[str] = []
+        unfilled_exits: list[str] = []
+        blocked_buys: list[str] = []
         candidates = []
 
         if regime == strategy.RED:
@@ -173,7 +205,7 @@ def run_backtest(
         else:
             candidates = strategy.build_candidates(
                 [(m.ticker, m.sector, m.symbol) for m in members], prices, compiled,
-                ScannerFilters(),
+                ScannerFilters(as_of=friday),      # so stale prices are caught here too
             )
             held = [strategy.Position(s, sector_of.get(s, ""), sleeve_of.get(s, ""))
                     for s in pf.symbols()]
@@ -209,12 +241,14 @@ def run_backtest(
             alt_open = _open_price(price_store.get(alt_ticker, as_of=monday), monday)                 if alt_ticker else None
 
             for sym in exits:                                   # sells first
-                px = opens.get(sym) or closes.get(sym)
-                if px:
+                px = opens.get(sym)
+                if px is not None:
                     t = pf.sell(sym, px, monday,
                                 reason="regime_red" if regime == strategy.RED else "rank_exit")
                     if t:
                         traded_value += t.value
+                else:
+                    unfilled_exits.append(sym)
 
             # The alt asset is a parking spot for RED weeks: park after the
             # equity sells settle, unpark before the GREEN buys need the cash.
@@ -233,8 +267,17 @@ def run_backtest(
             if regime != strategy.RED:
                 budget_each = pf.equity({**closes}) * position_weight_pct / 100
                 for b in buys:
-                    px = opens.get(b.symbol) or closes.get(b.symbol)
-                    if not px:
+                    if unfilled_exits:
+                        blocked_buys.append(b.symbol)
+                        continue
+                    px = opens.get(b.symbol)
+                    if px is None:
+                        unfilled_buys.append(b.symbol)
+                        continue
+                    # Not enough cash for a full position: defer it, exactly as
+                    # the live Monday plan does — never open an undersized one.
+                    if pf.cash < budget_each * bt_config.MIN_FILL_FRACTION:
+                        deferred.append(b.symbol)
                         continue
                     t = pf.buy(b.symbol, px, min(budget_each, pf.cash), monday,
                                stop_multiplier=stop_multiplier,
@@ -245,16 +288,20 @@ def run_backtest(
                         traded_value += t.value
 
         # --- through the week: stops --------------------------------------
-        next_friday = fridays[i + 1] if i + 1 < len(fridays) else None
+        next_friday = fridays[i + 1]
         stop_hits = _apply_stops(pf, tickers, monday, next_friday, traded_value)
         traded_value = stop_hits["traded_value"]
 
-        # --- interest on idle cash (a fixed-yield parking baseline) --------
-        if weekly_cash_yield and pf.cash > 0:
-            pf.cash *= 1 + weekly_cash_yield
-
         # --- mark to market at the next Friday close ----------------------
-        mark_date = next_friday or friday
+        mark_date = next_friday
+
+        # --- interest on idle cash (the liquid-fund parking of Spec v2.3) --
+        if weekly_cash_yield and pf.cash > 0:
+            interest = pf.cash * weekly_cash_yield
+            pf.cash += interest
+            if pf.tax is not None:
+                pf.cash -= pf.tax.cash_income(mark_date, interest)
+
         mark_prices = {
             t[:-3]: float(df["close"].iloc[-1])
             for t, df in price_store.get_many(tickers, as_of=mark_date).items()
@@ -274,6 +321,9 @@ def run_backtest(
             "week_end": friday.isoformat(), "regime": regime,
             "line_label": line_label, "line_value": line_value,
             "exits": exits, "buys": [b.symbol for b in buys],
+            "deferred": deferred,                 # selected, but not enough cash
+            "unfilled_buys": unfilled_buys, "unfilled_exits": unfilled_exits,
+            "blocked_buys": blocked_buys,
             "stops_hit": stop_hits["symbols"],
             "held": pf.symbols(), "equity": round(eq, 2),
             "eligible": sum(1 for c in candidates if c.eligible),
@@ -281,7 +331,9 @@ def run_backtest(
 
     return _assemble(
         pf, equity_rows, weekly_log, exposure, traded_value,
-        index_daily=index_daily, fridays=fridays, starting_capital=starting_capital,
+        bench_opt=bench_opt, bench_window=bench_weekly,
+        mark_prices=mark_prices, mark_date=mark_date,
+        fridays=fridays, starting_capital=starting_capital,
         universe_id=universe_id, index_opt=index_opt, filt=filt, formula=formula,
         alt_opt=alt_opt, alt_allocation_pct=alt_allocation_pct, clipped=clipped,
         cash_yield_pct=cash_yield_pct,
@@ -295,9 +347,7 @@ def _apply_stops(pf: Portfolio, tickers: list[str], start: dt.date | None,
                  end: dt.date | None, traded_value: float) -> dict:
     """Close any position whose daily LOW pierced its stop during the week.
 
-    Fill = min(stop, that day's open). A gap-down opens below the stop, and the
-    order fills at the gap — assuming the stop price would be honoured is the
-    single most common way a backtest flatters itself.
+    Fill = min(stop, that day's open), less configured slippage.
     """
     hits: list[str] = []
     if start is None or end is None:
@@ -308,10 +358,15 @@ def _apply_stops(pf: Portfolio, tickers: list[str], start: dt.date | None,
         df = price_store.get(f"{sym}.NS", as_of=end)
         if df is None:
             continue
-        window = df[(df.index.date > start) & (df.index.date <= end)]
+        window = df[(df.index.date >= start) & (df.index.date <= end)]
         for ts, row in window.iterrows():
             if float(row["low"]) <= h.stop_price:
-                fill = min(h.stop_price, float(row["open"]))
+                day_open = float(row["open"])
+                if not math.isfinite(day_open) or day_open <= 0:
+                    raise BacktestError(
+                        f"Cannot price stop for {sym} on {ts.date()}: invalid open.")
+                fill = min(h.stop_price, day_open)
+                fill = pf.costs.fill_price(fill, "sell")
                 t = pf.sell(sym, fill, ts.date(), reason="stop_hit", fill_price=fill)
                 if t:
                     traded_value += t.value
@@ -320,7 +375,40 @@ def _apply_stops(pf: Portfolio, tickers: list[str], start: dt.date | None,
     return {"symbols": hits, "traded_value": traded_value}
 
 
-def _assemble(pf, equity_rows, weekly_log, exposure, traded_value, *, index_daily,
+def _tax_block(pf: Portfolio, curve: pd.Series, bench_curve: pd.Series,
+               mark_prices: dict[str, float], mark_date: dt.date) -> dict:
+    """After-tax comparison on equal terms: both sides sold on the last day.
+
+    The strategy's curve is already net of tax on everything it SOLD, but its
+    open positions still carry untaxed gains; the benchmark has paid nothing at
+    all. Charging each its exit tax is the only like-for-like end figure.
+    """
+    if pf.tax is None:
+        return {"enabled": False}
+
+    def side(start: float, end: float, exit_tax: float, periods: int) -> dict:
+        after = end - exit_tax
+        return {"exit_tax": round(exit_tax, 2),
+                "end_equity_after_exit": round(after, 2),
+                "cagr_after_exit_pct": round(metrics_mod.cagr_pct(start, after, periods), 2)}
+
+    rules = pf.tax.rules
+    s_start, s_end = float(curve.iloc[0]), float(curve.iloc[-1])
+    b_start, b_end = float(bench_curve.iloc[0]), float(bench_curve.iloc[-1])
+    held_days = (bench_curve.index[-1] - bench_curve.index[0]).days
+    return {
+        "enabled": True,
+        **pf.tax.summary(),
+        "strategy": side(s_start, s_end, pf.liquidation_tax(mark_prices, mark_date),
+                         len(curve) - 1),
+        "benchmark": side(b_start, b_end,
+                          tax_mod.exit_tax(b_end - b_start, held_days, rules),
+                          len(bench_curve) - 1),
+    }
+
+
+def _assemble(pf, equity_rows, weekly_log, exposure, traded_value, *, bench_opt,
+              bench_window, mark_prices, mark_date,
               fridays, starting_capital, universe_id, index_opt, filt, formula,
               position_weight_pct, stop_multiplier, cost_bps, slippage_bps, members,
               alt_opt=None, alt_allocation_pct=100.0, clipped=None,
@@ -331,11 +419,11 @@ def _assemble(pf, equity_rows, weekly_log, exposure, traded_value, *, index_dail
     )
     m = metrics_mod.compute(curve, exposure)
 
-    bench_daily = index_daily[(index_daily.index.date >= fridays[0])
-                              & (index_daily.index.date <= fridays[-1])]
-    bench_weekly = resample_weekly(bench_daily)["close"] if not bench_daily.empty else pd.Series(dtype=float)
+    bench_weekly = bench_window
     bench_curve = metrics_mod.buy_and_hold(bench_weekly, starting_capital)
     bench = metrics_mod.compute(bench_curve)
+    bench_start = bench_weekly.index[0].date()
+    tax_block = _tax_block(pf, curve, bench_curve, mark_prices, mark_date)
 
     mean_equity = float(curve.mean()) if len(curve) else 0.0
     return {
@@ -356,9 +444,15 @@ def _assemble(pf, equity_rows, weekly_log, exposure, traded_value, *, index_dail
             "alt_asset_label": alt_opt.label if alt_opt else "",
             "alt_allocation_pct": alt_allocation_pct if alt_opt else 0.0,
             "cash_yield_pct": cash_yield_pct,
+            "benchmark_id": bench_opt.id, "benchmark_label": bench_opt.label,
+            "benchmark_total_return": bench_opt.total_return,
+            "benchmark_start": bench_start.isoformat(),
+            "benchmark_end": bench_weekly.index[-1].date().isoformat(),
+            "apply_tax": pf.tax is not None,
         },
         "metrics": m.as_dict(),
         "benchmark": bench.as_dict(),
+        "tax": tax_block,
         "trade_stats": metrics_mod.trade_stats(pf.trades),
         "turnover": metrics_mod.turnover(traded_value, mean_equity, len(equity_rows)),
         "equity_curve": equity_rows,
@@ -369,7 +463,8 @@ def _assemble(pf, equity_rows, weekly_log, exposure, traded_value, *, index_dail
         "weeks": weekly_log,
         "trades": [
             {"date": t.date.isoformat(), "symbol": t.symbol, "side": t.side, "qty": t.qty,
-             "price": t.price, "value": t.value, "charges": t.charges, "reason": t.reason}
+             "price": t.price, "value": t.value, "charges": t.charges, "reason": t.reason,
+             "pnl": t.pnl, "tax": t.tax}
             for t in pf.trades
         ],
         "limitations": ([clipped] if clipped else []) + [
@@ -378,9 +473,35 @@ def _assemble(pf, equity_rows, weekly_log, exposure, traded_value, *, index_dail
             "The fundamental veto (pledging, interest coverage, pending actions) is not "
             "simulated: those values are not available historically. Per the Rulebook's "
             "data-safeguard, unverifiable checks pass.",
-            "Stop fills assume min(stop, next open); real slippage on a gap can be worse.",
+            "Stop fills use min(stop, day's open) less configured slippage, including the "
+            "execution day. Daily bars cannot establish when a stop was placed or whether "
+            "an order filled; gaps, halts and market impact can make actual fills worse.",
+            "Missing execution opens leave orders unfilled; missing or stale prices can "
+            "also make marked portfolio values unreliable.",
+            "When an exit has no execution open, that week's planned buys are blocked "
+            "because the portfolio still contains the unsold position.",
             "Prices are yfinance adjusted closes, which differ slightly from NSE prints.",
+            "Vendor-tick repairs may use surrounding observations, including later prices.",
+            "The benchmark is an index or proxy, not a model of actual fund expenses "
+            "and tracking differences.",
         ] + ([
+            "Tax is modelled at TODAY'S rates for the whole history (short-term 20%, "
+            "long-term 12.5% above Rs 1.25 lakh a year, parked-cash income at 30%) and paid "
+            "as gains are realised. Surcharge and cess are not included, so the real bill "
+            "is slightly higher.",
+        ] if pf.tax is not None else [
+            "Tax is NOT modelled in this run. The strategy turns over about six times a "
+            "year, so nearly every gain is short-term — pre-tax returns overstate what "
+            "you would keep.",
+        ]) + ([] if bench_opt.total_return else [
+            f"The benchmark {bench_opt.label} is a PRICE index: it leaves out dividends "
+            "(roughly 1% a year), so the strategy's lead over it is overstated by about "
+            "that much. Use a total-return benchmark for a fair comparison.",
+        ]) + ([
+            f"Idle cash is credited a fixed {cash_yield_pct:g}% a year, standing in for a "
+            "liquid or overnight fund. Real yields moved between roughly 3% and 9% over "
+            "this period.",
+        ] if cash_yield_pct else []) + ([
             f"RED weeks park {alt_allocation_pct:g}% of equity in {alt_opt.label}. "
             f"That series starts {alt_opt.first_session or 'later than the test'} — earlier "
             "RED weeks simply stay in cash, so the benefit only applies to part of the run.",

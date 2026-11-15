@@ -19,7 +19,10 @@ class HoldingAudit(BaseModel):
     score: Optional[float] = None
     in_universe: bool = True          # False => dropped from the scanned universe
     exit_flagged: bool = False
-    reasons: list[str] = []           # e.g. rank>50, dropped_from_universe
+    # Why it exits (rank_exit, dropped_from_universe) — or, for a holding that
+    # is kept WITHOUT being ranked, why it could not be audited
+    # (price_data_unavailable, excluded_by_scan_filter).
+    reasons: list[str] = []
 
 
 class ExitFlagsOutput(BaseModel):

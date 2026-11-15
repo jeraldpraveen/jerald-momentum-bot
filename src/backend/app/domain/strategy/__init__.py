@@ -11,17 +11,19 @@ Nothing in here may import from `app.services`, `app.repositories` or
 by a test (`test_strategy_core_has_no_io`).
 """
 
-from .audit import DROPPED, RANK_EXIT, audit_holdings
+from .audit import DATA_GAP, DROPPED, RANK_EXIT, SCREENED_OUT, audit_holdings
 from .caps import CapsResult, apply_caps, sleeve_of
 from .regime import GREEN, RED, decide_regime
 from .scoring import build_candidates, median_traded_value_cr
+from .sectors import canonical_sector
 from .technical import check_extension, check_overbought, check_trend, evaluate_technical
 from .types import Position, RankedName
 
 __all__ = [
     "GREEN", "RED", "decide_regime",
     "build_candidates", "median_traded_value_cr",
-    "audit_holdings", "RANK_EXIT", "DROPPED",
+    "audit_holdings", "RANK_EXIT", "DROPPED", "DATA_GAP", "SCREENED_OUT",
+    "canonical_sector",
     "evaluate_technical", "check_trend", "check_extension", "check_overbought",
     "apply_caps", "CapsResult", "sleeve_of",
     "Position", "RankedName",

@@ -1,11 +1,13 @@
 """Strategy parameters + the selectable regime registries.
 
-Rulebook v2.1 default is Supertrend (1, 2.5) on NIFTY MIDSMALLCAP 400, but the
-regime gate is a configurable "playground": the user picks an index and a filter
-per cycle from the registries below. Every option is data-verified against
-Yahoo Finance (see scripts/probe or the data_fetch notes).
+Spec v2.3 default is Supertrend (1, 2.5) on NIFTY 500 — the gate every backtest
+was actually run on. The regime gate is still a configurable "playground": the
+user can pick another index/filter per cycle from the registries below, but an
+index other than the ratified one is flagged as untested. Every option is
+data-verified against Yahoo Finance (see scripts/probe or the data_fetch notes).
 """
 
+import datetime as dt
 from dataclasses import dataclass, field
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -38,7 +40,10 @@ INDEX_OPTIONS: list[IndexOption] = [
     IndexOption("microcap250", "NIFTY MICROCAP 250", "MOSMALL250.NS", "etf_proxy", "Motilal Oswal ETF"),
     IndexOption("next50", "NIFTY NEXT 50", "JUNIORBEES.NS", "etf_proxy", "Nippon ETF"),
 ]
-DEFAULT_INDEX_ID = "midsmall400"
+# Spec v2.3 (amendment 2): the live gate runs on the index the backtests gated
+# on. NIFTY MIDSMALLCAP 400 is only reachable as a young ETF proxy, so its gate
+# was never tested over a full cycle; NIFTY 500 (^CRSLDX) reaches back to 2005.
+DEFAULT_INDEX_ID = "nifty500"
 
 
 # --- Selectable regime filter (indicator + params) -------------------------
@@ -110,9 +115,12 @@ class AltAssetOption:
 
 ALT_ASSET_OPTIONS: list[AltAssetOption] = [
     AltAssetOption("gold", "Gold (GOLDBEES)", "GOLDBEES.NS",
-                   "Nippon gold ETF; ~0 correlation with equities", "2009-01-02"),
+                   "Nippon gold ETF; ~0 correlation with equities. RESEARCH ONLY — "
+                   "not adopted for RED weeks (Spec v2.3): the result leans on "
+                   "gold's 20-year run and adds a second bet", "2009-01-02"),
     AltAssetOption("gold_sbi", "Gold (SETFGOLD)", "SETFGOLD.NS",
-                   "SBI gold ETF — a cross-check on GOLDBEES", "2009-05-18"),
+                   "SBI gold ETF — a cross-check on GOLDBEES. RESEARCH ONLY — "
+                   "not adopted for RED weeks (Spec v2.3)", "2009-05-18"),
     AltAssetOption("silver", "Silver (SILVERBEES)", "SILVERBEES.NS",
                    "far shorter history — 2022 onward only", "2022-02-04"),
     AltAssetOption("liquid", "Liquid fund (LIQUIDBEES)", "LIQUIDBEES.NS",
@@ -159,12 +167,19 @@ UNIVERSE_OPTIONS: list[UniverseOption] = [
     UniverseOption("microcap250", "NIFTY MICROCAP 250", "nse_csv",
                    "ind_niftymicrocap250_list", "250 names (slow first fetch)"),
 ]
-DEFAULT_UNIVERSE_ID = "holdings"
+# What the Friday scan covers unless told otherwise: the two Rulebook indices.
+# (It used to default to "holdings" — ranking a five-name book against itself,
+# where nothing can ever rank worse than 5 and so no rank exit can fire.)
+DEFAULT_UNIVERSE_IDS: tuple[str, ...] = ("midsmall400", "microcap250")
 
 # Eligibility thresholds (Rulebook).
 LIQUIDITY_FLOOR_CR = 5.0          # median daily traded value >= Rs 5 Cr
 MEDIAN_TV_WINDOW = 20            # over the last 20 trading days
 MIN_LISTING_DAYS = 252          # listed >= ~12 months
+# A name whose latest bar is older than this (calendar days before the as-of
+# date) is not ranked: its score would describe a price nobody can trade at.
+# A week covers a Friday close read on the following Monday plus a holiday.
+MAX_PRICE_AGE_DAYS = 7
 RUPEES_PER_CRORE = 1e7
 
 # --- Part C: portfolio audit (exit rules) ----------------------------------
@@ -187,14 +202,38 @@ MAX_EXTENSION_PCT = 30.0
 RSI_PERIOD = 14
 MAX_RSI = 82.0                   # RSI(14) > 82 -> strike (overbought)
 FUNDAMENTALS_MAX_AGE_DAYS = 30   # re-fetch cached financials after this many days
+# NSE reshuffles its indices every March and September. A constituent list older
+# than this is re-fetched, so a deletion is seen within a month, not never.
+CONSTITUENTS_MAX_AGE_DAYS = 30
 
 
-def get_universe_option(universe_id: str | None) -> UniverseOption:
-    target = universe_id or DEFAULT_UNIVERSE_ID
+def get_universe_option(universe_id: str) -> UniverseOption:
     for opt in UNIVERSE_OPTIONS:
-        if opt.id == target:
+        if opt.id == universe_id:
             return opt
     raise KeyError(f"Unknown universe_id {universe_id!r}")
+
+# --- RED-week / idle cash parking (Spec v2.3, amendment 1) ------------------
+# Cash the strategy is not using — RED-week proceeds, stop-out cash waiting for
+# Friday, unfilled slots — sits in a liquid or overnight fund, never idle.
+# Parking is a cash-management instruction only: it changes no signal.
+PARKING_INSTRUMENT = "liquid or overnight fund"
+# What is deliberately NOT a parking instrument (amendment 5): gold was tested
+# and rejected — it is a second bet, not a place to wait.
+PARKING_EXCLUDED = ("gold", "gold_sbi", "silver")
+
+# --- Promotion to broker execution (Spec v2.3, amendment 6) -----------------
+# The shadow ladder restarted with the 2026-11-13 cycle (the journal was reset
+# on 2026-11-14). Twelve consecutive Fridays are required before promotion.
+SHADOW_START = dt.date(2026, 11, 13)
+SHADOW_WEEKS_REQUIRED = 12
+
+
+def earliest_promotion_date(start: dt.date = SHADOW_START,
+                            weeks: int = SHADOW_WEEKS_REQUIRED) -> dt.date:
+    """The Friday the shadow ladder completes if no week is missed."""
+    return start + dt.timedelta(weeks=weeks - 1)
+
 
 # --- Paths -----------------------------------------------------------------
 APP_DIR = Path(__file__).resolve().parent          # src/backend/app

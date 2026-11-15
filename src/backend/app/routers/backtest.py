@@ -12,6 +12,7 @@ from ..schemas.backtest import (
     AltAssetOption,
     BacktestResult,
     BacktestRunRequest,
+    BenchmarkOptionOut,
     BuildUniverseRequest,
     IndexCoverage,
     RunRecord,
@@ -30,6 +31,12 @@ def list_alt_assets() -> list[AltAssetOption]:
     """Assets that RED-week capital can be parked in instead of idle cash."""
     from .. import config as app_config
     return [AltAssetOption(**vars(o)) for o in app_config.ALT_ASSET_OPTIONS]
+
+
+@router.get("/benchmarks", response_model=list[BenchmarkOptionOut])
+def list_benchmarks() -> list[BenchmarkOptionOut]:
+    """What a run can be measured against, and which total-return files exist."""
+    return backtest_service.list_benchmarks()
 
 
 @router.get("/index-coverage", response_model=list[IndexCoverage])

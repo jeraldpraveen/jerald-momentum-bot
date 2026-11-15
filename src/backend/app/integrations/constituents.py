@@ -6,11 +6,18 @@ archives.nseindia.com are plain, fetchable text/csv. Columns:
 We keep Symbol (-> <Symbol>.NS for yfinance) and Industry (-> sector for caps).
 
 Caveat: this is the CURRENT membership only (survivorship bias for history).
+
+The cached list EXPIRES (config.CONSTITUENTS_MAX_AGE_DAYS). NSE reconstitutes
+these indices twice a year; a list cached once and served forever kept scanning
+names that had left the index and never saw the ones that joined. If the
+refresh fails, the old list is still served — a slightly stale universe beats
+no scan — and the failure is logged.
 """
 
 from __future__ import annotations
 
 import logging
+import time
 
 import pandas as pd
 import requests
@@ -28,12 +35,29 @@ def _cache_path(nse_key: str):
     return config.UNIVERSES_DIR / f"{nse_key}.csv"
 
 
+def _is_current(cache) -> bool:
+    age_days = (time.time() - cache.stat().st_mtime) / 86_400
+    return age_days <= config.CONSTITUENTS_MAX_AGE_DAYS
+
+
 def fetch_constituents(nse_key: str, force_refresh: bool = False) -> pd.DataFrame:
     """Return DataFrame[symbol, sector, company] for an NSE index; cache locally."""
     cache = _cache_path(nse_key)
-    if cache.exists() and not force_refresh:
+    if cache.exists() and not force_refresh and _is_current(cache):
         return pd.read_csv(cache)
 
+    try:
+        return _download(nse_key, cache)
+    except Exception as exc:  # noqa: BLE001 — fall back to the old list if there is one
+        if cache.exists() and not force_refresh:
+            log.warning("Could not refresh constituents for %s (%s); serving the cached "
+                        "list, which may predate an index reconstitution.",
+                        nse_key, type(exc).__name__)
+            return pd.read_csv(cache)
+        raise
+
+
+def _download(nse_key: str, cache) -> pd.DataFrame:
     url = _ARCHIVE.format(key=nse_key)
     r = requests.get(url, headers=_HEADERS, timeout=30)
     r.raise_for_status()

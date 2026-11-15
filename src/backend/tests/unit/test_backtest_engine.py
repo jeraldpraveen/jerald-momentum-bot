@@ -178,7 +178,85 @@ def test_run_produces_a_curve_and_metrics(market):
 def test_equity_starts_at_the_starting_capital(market):
     res = _run(start=dt.date(2022, 1, 1))
     first = res["equity_curve"][0]["equity"]
-    assert first == pytest.approx(1_000_000, rel=0.35)  # first week is partly deployed
+    assert first == 1_000_000
+    assert [r["date"] for r in res["equity_curve"]] == [
+        r["date"] for r in res["benchmark_curve"]]
+
+
+def test_end_date_does_not_execute_future_orders_or_repeat_marks(market):
+    end = dt.date(2022, 6, 24)
+    res = _run(start=dt.date(2022, 5, 6), end=end, filter_id="always_green")
+    dates = [r["date"] for r in res["equity_curve"]]
+    assert len(dates) == len(set(dates))
+    assert dates[-1] == end.isoformat()
+    assert all(t["date"] <= end.isoformat() for t in res["trades"])
+    assert all(w["week_end"] < end.isoformat() for w in res["weeks"])
+
+
+def test_missing_execution_open_does_not_fill_at_friday_close(market):
+    kwargs = dict(start=dt.date(2022, 1, 7), end=dt.date(2022, 3, 25),
+                  filter_id="always_green")
+    baseline = _run(**kwargs)
+    buy = next(t for t in baseline["trades"] if t["side"] == "buy")
+    ticker = buy["symbol"] + ".NS"
+    data = price_store.load(ticker)
+    price_store.save(ticker, data.drop(pd.Timestamp(buy["date"])))
+    result = _run(**kwargs)
+    assert not any(t["symbol"] == buy["symbol"] and t["date"] == buy["date"]
+                   for t in result["trades"])
+    assert any(buy["symbol"] in w["unfilled_buys"] for w in result["weeks"])
+
+
+def test_missing_exit_open_leaves_holding_and_reports_unfilled(market, monkeypatch):
+    monkeypatch.setattr(engine.strategy, "decide_regime", lambda w, f: (
+        "GREEN" if w.index[-1].date() == dt.date(2022, 1, 7) else "RED", "", None))
+    kwargs = dict(start=dt.date(2022, 1, 7), end=dt.date(2022, 2, 4))
+    baseline = _run(**kwargs)
+    sell = next(t for t in baseline["trades"] if t["reason"] == "regime_red")
+    ticker = sell["symbol"] + ".NS"
+    price_store.save(ticker, price_store.load(ticker).drop(pd.Timestamp(sell["date"])))
+    result = _run(**kwargs)
+    assert not any(t["symbol"] == sell["symbol"] and t["date"] == sell["date"]
+                   for t in result["trades"])
+    assert any(sell["symbol"] in w["unfilled_exits"] for w in result["weeks"])
+    assert any(t["symbol"] == sell["symbol"] and t["date"] > sell["date"]
+               for t in result["trades"])
+
+
+def test_missing_exit_blocks_buys_that_assumed_the_slot_was_free(market, monkeypatch):
+    real_audit = engine.strategy.audit_holdings
+    real_caps = engine.strategy.apply_caps
+
+    def exit_held(*args, **kwargs):
+        rows = real_audit(*args, **kwargs)
+        if rows:
+            rows[0].exit_flagged = True
+        return rows
+
+    def one_buy(*args, **kwargs):
+        result = real_caps(*args, **kwargs)
+        result.buys = result.buys[:1]
+        return result
+
+    monkeypatch.setattr(engine.strategy, "audit_holdings", exit_held)
+    monkeypatch.setattr(engine.strategy, "apply_caps", one_buy)
+    kwargs = dict(start=dt.date(2022, 1, 7), end=dt.date(2022, 2, 4),
+                  filter_id="always_green")
+    baseline = _run(**kwargs)
+    sell = next(t for t in baseline["trades"] if t["side"] == "sell")
+    ticker = sell["symbol"] + ".NS"
+    price_store.save(ticker, price_store.load(ticker).drop(pd.Timestamp(sell["date"])))
+    result = _run(**kwargs)
+    week = next(w for w in result["weeks"] if sell["symbol"] in w["unfilled_exits"])
+    assert week["blocked_buys"]
+    assert not any(t["symbol"] in week["blocked_buys"] and t["date"] == sell["date"]
+                   for t in result["trades"])
+
+
+@pytest.mark.parametrize("price", [0.0, -1.0, float("nan"), float("inf")])
+def test_invalid_execution_open_is_not_a_fill(price):
+    frame = pd.DataFrame({"open": [price]}, index=pd.to_datetime(["2024-01-08"]))
+    assert engine._open_price(frame, dt.date(2024, 1, 8)) is None
 
 
 def test_costs_reduce_returns_monotonically(market):
@@ -192,7 +270,7 @@ def test_costs_reduce_returns_monotonically(market):
 def test_red_regime_goes_to_cash(market, monkeypatch):
     monkeypatch.setattr(engine.strategy, "decide_regime",
                         lambda weekly, filt: ("RED", "Supertrend", 1.0))
-    res = _run()
+    res = _run(cash_yield_pct=0.0)          # truly idle cash, to isolate the gate
 
     assert all(w["regime"] == "RED" for w in res["weeks"])
     assert all(w["buys"] == [] for w in res["weeks"])
@@ -231,6 +309,35 @@ def test_stop_fills_at_the_gap_not_the_stop(bt_dirs):  # noqa: F811
     assert out["symbols"] == ["AAA"]
     assert pf.trades[-1].price == pytest.approx(70.0)   # the gap, not 80
     assert pf.holdings == {}
+
+
+def test_stop_checks_execution_day_and_applies_adverse_slippage(bt_dirs):  # noqa: F811
+    pf = Portfolio(cash=0.0, costs=CostModel(cost_bps=0, slippage_bps=100))
+    pf.holdings["AAA"] = Holding("AAA", 100, 100.0, dt.date(2024, 1, 1), 80.0)
+    price_store.save("AAA.NS", pd.DataFrame(
+        {"open": [70.0], "high": [75.0], "low": [68.0], "close": [72.0],
+         "volume": [1e6]}, index=pd.to_datetime(["2024-01-08"])))
+    out = engine._apply_stops(pf, ["AAA.NS"], dt.date(2024, 1, 8),
+                              dt.date(2024, 1, 12), 0.0)
+    assert out["symbols"] == ["AAA"]
+    assert pf.trades[-1].price == pytest.approx(69.3)
+
+
+def test_triggered_stop_with_invalid_open_fails_instead_of_inventing_fill(bt_dirs):  # noqa: F811
+    pf = Portfolio(cash=0.0, costs=CostModel(0, 0))
+    pf.holdings["AAA"] = Holding("AAA", 100, 100.0, dt.date(2024, 1, 1), 80.0)
+    price_store.save("AAA.NS", pd.DataFrame(
+        {"open": [float("nan")], "high": [75.0], "low": [68.0], "close": [72.0],
+         "volume": [1e6]}, index=pd.to_datetime(["2024-01-08"])))
+    with pytest.raises(engine.BacktestError, match="Cannot price stop for AAA"):
+        engine._apply_stops(pf, ["AAA.NS"], dt.date(2024, 1, 8),
+                            dt.date(2024, 1, 12), 0.0)
+
+
+def test_stops_do_not_execute_without_a_complete_window():
+    pf = _pf(cost_bps=0, slippage_bps=0)
+    assert engine._apply_stops(pf, [], None, dt.date(2024, 1, 12), 42.0) == {
+        "symbols": [], "traded_value": 42.0}
 
 
 def test_empty_universe_is_a_clear_error(bt_dirs):  # noqa: F811
@@ -439,8 +546,8 @@ def test_cash_yield_compounds_only_on_idle_cash(bt_dirs, monkeypatch):  # noqa: 
 
     monkeypatch.setattr(engine.strategy, "decide_regime",
                         lambda w, f: ("RED", "Supertrend", 1.0))   # always cash
-    flat = engine.run_backtest(universe_id="u", cash_yield_pct=0.0)
-    paid = engine.run_backtest(universe_id="u", cash_yield_pct=7.0)
+    flat = engine.run_backtest(universe_id="u", cash_yield_pct=0.0, apply_tax=False)
+    paid = engine.run_backtest(universe_id="u", cash_yield_pct=7.0, apply_tax=False)
 
     assert paid["metrics"]["end_equity"] > flat["metrics"]["end_equity"]
     # ~7%/yr over the simulated span, give or take the warm-up.
@@ -450,11 +557,14 @@ def test_cash_yield_compounds_only_on_idle_cash(bt_dirs, monkeypatch):  # noqa: 
     assert paid["config"]["cash_yield_pct"] == 7.0
 
 
-def test_cash_yield_default_is_zero(bt_dirs, monkeypatch):  # noqa: F811
+def test_cash_yield_defaults_to_the_liquid_fund_assumption(bt_dirs, monkeypatch):  # noqa: F811
+    """Spec v2.3: idle cash is parked in a liquid fund, so the default run must
+    model that rather than money sitting at zero."""
     from app import config as app_config
     price_store.save(app_config.get_index_option(app_config.DEFAULT_INDEX_ID).ticker,
                      _series(900, seed=1))
     price_store.save("S0.NS", _series(900, seed=10))
     universe.save("u", [universe.UniverseMember("S0", "Auto", "MIDSMALLCAP400")])
     res = engine.run_backtest(universe_id="u")
-    assert res["config"]["cash_yield_pct"] == 0.0
+    assert res["config"]["cash_yield_pct"] == bt_config.CASH_YIELD_PCT == 6.5
+    assert any("liquid or overnight fund" in l for l in res["limitations"])

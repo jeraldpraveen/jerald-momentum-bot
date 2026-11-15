@@ -22,7 +22,10 @@ from .. import config
 log = logging.getLogger(__name__)
 
 # yfinance income-statement row names, most preferred first.
-_EBIT_ROWS = ("EBIT", "Operating Income", "Pretax Income")
+_EBIT_ROWS = ("EBIT", "Operating Income")
+# Earnings AFTER interest. Usable only with the interest added back — dividing
+# it by interest directly gives the true coverage minus one.
+_PRETAX_ROWS = ("Pretax Income",)
 _INTEREST_ROWS = ("Interest Expense", "Interest Expense Non Operating")
 
 NO_DEBT_IC = 999.0   # no/zero interest expense -> effectively infinite coverage
@@ -68,28 +71,42 @@ def _fetch_interest_coverage(ticker: str) -> float | None:
     fin = yf.Ticker(ticker).income_stmt
     if fin is None or fin.empty:
         return None
-    ebit = _row(fin, _EBIT_ROWS)
     interest = _row(fin, _INTEREST_ROWS)
-    if ebit is None:
+    if interest is None:
+        # No interest row is MISSING DATA, not proof of no debt — Yahoo often
+        # omits it. Unverified (passes with a flag), never a cited "debt free".
         return None
-    if interest is None or abs(interest) < 1e-6:
-        return NO_DEBT_IC          # no debt servicing cost -> passes
+    if abs(interest) < 1e-6:
+        return NO_DEBT_IC          # an explicit zero: no debt servicing cost -> passes
+
+    ebit = _row(fin, _EBIT_ROWS)
+    if ebit is None:
+        pretax = _row(fin, _PRETAX_ROWS)
+        if pretax is None:
+            return None
+        ebit = pretax + abs(interest)      # EBIT = pre-tax income + interest
     return round(ebit / abs(interest), 2)
 
 
-def get_interest_coverage(ticker: str, today: dt.date | None = None) -> float | None:
-    """Cached EBIT / |Interest Expense|. None when Yahoo has no usable data."""
+def get_interest_coverage(ticker: str, today: dt.date | None = None,
+                          refresh: bool = False) -> float | None:
+    """Cached EBIT / |Interest Expense|. None when Yahoo has no usable data.
+
+    `refresh` skips the cache and pulls again (the "re-pull" control in Step 4).
+    A FAILED fetch is never cached: an outage on one Friday must not leave the
+    company "unverified" for the next thirty days.
+    """
     today = today or dt.date.today()
     cache = _load_cache()
     entry = cache.get(ticker)
-    if entry and _fresh(entry, today):
+    if entry and not refresh and _fresh(entry, today):
         return entry.get("interest_coverage")
 
     try:
         value = _fetch_interest_coverage(ticker)
     except Exception as exc:  # noqa: BLE001 — best-effort; missing => unverified
         log.info("Interest coverage unavailable for %s (%s)", ticker, type(exc).__name__)
-        value = None
+        return None
 
     cache[ticker] = {"interest_coverage": value, "fetched": today.isoformat()}
     _save_cache(cache)

@@ -67,4 +67,7 @@ class FundamentalOutput(BaseModel):
     candidates: list[FundamentalCandidate]
     struck_count: int
     passed_count: int
+    # False when NSE's ASM/GSM lists could not be fetched: check 6 then has no
+    # exchange data behind it and every candidate is unverified on it.
+    surveillance_checked: bool = True
     actions: list[str] = []

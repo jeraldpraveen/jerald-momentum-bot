@@ -54,6 +54,12 @@ class RegimeGateOutput(BaseModel):
     filter_label: str
     indicator: str
     data_source: str                    # which provider fed the decision
+    # False when the gate was run on an index other than the ratified one
+    # (Spec v2.3: NIFTY 500) — a decision the backtests never covered.
+    ratified_index: bool = True
+    # False when the candle the gate judged is not for the cycle's own week —
+    # the index feed is behind (or the cycle is dated to another week).
+    week_matches_cycle: bool = True
     previous_regime: Optional[Regime] = None
     reentry_required: bool = False      # True on a RED -> GREEN transition
     actions: list[str] = []

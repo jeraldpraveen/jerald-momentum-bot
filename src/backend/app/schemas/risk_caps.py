@@ -61,4 +61,7 @@ class RiskCapsOutput(BaseModel):
     sector_counts: dict[str, int]     # resulting portfolio
     microcap_count: int
     final_portfolio_size: int
+    # False when the Microcap 250 list could not be loaded, so the max-microcap
+    # cap had nothing to count against and was NOT applied.
+    microcap_cap_enforced: bool = True
     actions: list[str] = []

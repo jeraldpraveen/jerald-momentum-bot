@@ -3,9 +3,11 @@ import type {
   ApiError,
   BacktestResult,
   BacktestRunRequest,
+  BenchmarkOption,
   Cycle,
   CycleSummary,
   FormulaValidateResponse,
+  FrozenFormula,
   FundamentalAssessment,
   Holding,
   IndexCoverage,
@@ -102,11 +104,15 @@ export const api = {
     return request<string[]>(`/api/universe-sectors?${qs}`);
   },
 
-  runPartB: (body: { universe_ids: string[]; formula: string; filters: ScannerFilters }) =>
+  // `formula` is omitted on purpose: the live score is frozen (Spec v2.3) and
+  // the backend refuses anything else with 409 formula_frozen.
+  runPartB: (body: { universe_ids: string[]; formula?: string; filters: ScannerFilters }) =>
     request<Cycle>("/api/cycles/current/steps/part-b/run", {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  getFrozenFormula: () => request<FrozenFormula>("/api/scanner/frozen-formula"),
 
   validateFormula: (formula: string) =>
     request<FormulaValidateResponse>("/api/scanner/validate-formula", {
@@ -163,6 +169,8 @@ export const api = {
   listAltAssets: () => request<AltAssetOption[]>("/api/backtest/alt-assets"),
 
   getIndexCoverage: () => request<IndexCoverage[]>("/api/backtest/index-coverage"),
+
+  listBenchmarks: () => request<BenchmarkOption[]>("/api/backtest/benchmarks"),
 
   listBacktestUniverses: () => request<UniverseSummary[]>("/api/backtest/universes"),
 

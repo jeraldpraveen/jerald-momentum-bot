@@ -49,6 +49,36 @@ def _compute_output(
     holdings = ledger.load_ledger()
     active = ledger.active_symbols(holdings)
 
+    # Spec v2.3: the gate is ratified on ONE index — the one every backtest
+    # gated on. Another index may still be run (the gate is a playground), but
+    # the decision is then outside the tested rules and must say so.
+    ratified = config.get_index_option(None)
+    ratified_index = index.id == ratified.id
+    if not ratified_index:
+        actions.append(
+            f"UNTESTED GATE — {index.label} is not the ratified regime index "
+            f"({ratified.label}). Every backtest gated on {ratified.label}; a decision "
+            "from this index is outside the tested rules. Re-run on the ratified index "
+            "before acting."
+        )
+
+    # The gate must be judging the week this cycle is FOR. If the index feed is
+    # behind, the verdict describes an earlier week and must not pass for this
+    # week's decision without saying so.
+    cycle_week = dt.date.fromisoformat(cycle_id.split(".")[0])
+    week_matches_cycle = week_end == cycle_week
+    if week_end < cycle_week:
+        actions.append(
+            f"STALE GATE — the latest closed weekly candle is for the week ending "
+            f"{week_end.isoformat()}, older than this cycle's week ({cycle_week.isoformat()}). "
+            "This verdict describes an earlier week. Refresh the index data (or wait for "
+            "Friday's close) and re-run before acting on it.")
+    elif week_end > cycle_week:
+        actions.append(
+            f"WEEK MISMATCH — the candle judged is for the week ending {week_end.isoformat()}, "
+            f"newer than this cycle's week ({cycle_week.isoformat()}). Start a cycle for the "
+            "current week rather than deciding an old one on new data.")
+
     if regime == RED:
         actions.append(
             f"On advance: mark {len(active)} holdings PENDING_EXIT for Monday open: {', '.join(active)}"
@@ -59,6 +89,11 @@ def _compute_output(
         actions.append(
             "Do NOT cancel your GTT stops tonight — leave them live over the weekend. "
             "On Monday, cancel each position's GTT individually just before placing its sell order."
+        )
+        # v2.3: RED-week cash is never left idle.
+        actions.append(
+            f"On Monday, as each sell fills, park the proceeds in your "
+            f"{config.PARKING_INSTRUMENT}. They stay there until the first GREEN Friday."
         )
         actions.append("Scan/rank/veto will be skipped — regime RED terminates the ritual")
     else:
@@ -84,6 +119,8 @@ def _compute_output(
         filter_label=filt.label,
         indicator=filt.indicator,
         data_source=data.source,
+        ratified_index=ratified_index,
+        week_matches_cycle=week_matches_cycle,
         previous_regime=previous_regime,
         reentry_required=reentry_required,
         actions=actions,

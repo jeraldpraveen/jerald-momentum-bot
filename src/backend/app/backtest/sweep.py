@@ -23,6 +23,7 @@ from .. import config as app_config
 from ..domain import scoring_formula, strategy
 from . import metrics as metrics_mod
 from . import panel as panel_mod
+from . import config as bt_config
 from .costs import CostModel
 
 
@@ -64,6 +65,7 @@ def simulate(p: panel_mod.Panel,
 
     costs = CostModel(cost_bps=cost_bps, slippage_bps=slippage_bps)
     eligible = p.eligible()
+    stale = p.stale()
     rk = panel_mod.ranks(scores, eligible)
     micro = {s for s, sl in zip(p.symbols, p.sleeve) if sl == "MICROCAP250"}
     sector_of = dict(zip(p.symbols, p.sector))
@@ -86,8 +88,11 @@ def simulate(p: panel_mod.Panel,
         else:
             held = [strategy.Position(s, sector_of.get(s, "")) for s in qty]
             ranked_now = {s: int(rk[i, j]) for j, s in enumerate(p.symbols)}
-            exits = [s for s in qty
-                     if ranked_now.get(s, 0) == 0 or ranked_now[s] > rank_exit]
+            # A holding with no current price is kept, not treated as dropped —
+            # the audit rule: a data gap is not an exit signal.
+            gap = {s for j, s in enumerate(p.symbols) if stale[i, j]}
+            exits = [s for s in qty if s not in gap
+                     and (ranked_now.get(s, 0) == 0 or ranked_now[s] > rank_exit)]
             keep = [s for s in qty if s not in exits]
 
             shortlist = []
@@ -132,14 +137,20 @@ def simulate(p: panel_mod.Panel,
                 ref = open_i[j] if np.isfinite(open_i[j]) else px.get(b.symbol)
                 if not ref:
                     continue
+                # Defer rather than under-size — the same rule as the engine and
+                # the live Monday plan.
+                if cash < budget * bt_config.MIN_FILL_FRACTION:
+                    continue
                 fill = costs.fill_price(ref, "buy")
-                n = int(min(budget, cash) // fill)
+                # Leave room for the charges, so a buy that takes the last of the
+                # cash is a share or two short rather than dropped altogether
+                # (the engine does the same).
+                affordable = cash / (1 + costs.cost_bps / 10_000.0)
+                n = int(min(budget, affordable) // fill)
                 if n < 1:
                     continue
                 value = n * fill
                 charge = costs.charges(value)
-                if value + charge > cash:
-                    continue
                 cash -= value + charge
                 qty[b.symbol] = qty.get(b.symbol, 0) + n
                 stop[b.symbol] = fill * stop_multiplier
@@ -224,5 +235,6 @@ def slice_panel(p: panel_mod.Panel, start: dt.date | None,
         listed_days=p.listed_days[idx], dma_50=p.dma_50[idx], dma_20=p.dma_20[idx],
         rsi_14=p.rsi_14[idx], week_low=p.week_low[idx], next_open=p.next_open[idx],
         sector=p.sector, sleeve=p.sleeve, meta=dict(p.meta),
+        price_age_days=None if p.price_age_days is None else p.price_age_days[idx],
     )
     return sub, mask

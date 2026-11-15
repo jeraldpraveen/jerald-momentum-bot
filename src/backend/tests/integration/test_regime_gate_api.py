@@ -23,7 +23,7 @@ def test_regime_options_lists_indices_and_filters(api):
     body = r.json()
     ids = [o["id"] for o in body["indices"]]
     assert "midsmall400" in ids and "nifty50" in ids
-    assert body["default_index_id"] == "midsmall400"
+    assert body["default_index_id"] == "nifty500"         # the ratified gate (v2.3)
     assert any(f["id"] == "always_green" for f in body["filters"])
 
 

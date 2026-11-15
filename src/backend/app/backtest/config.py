@@ -32,11 +32,27 @@ STOP_MULTIPLIER = 0.80          # 20% stop, same as the live plan
 POSITION_WEIGHT_PCT = 10.0      # ~10% per name
 STARTING_CAPITAL = 1_000_000.0  # 10 lakh, a round default the user can change
 
+# The live Monday plan DEFERS a buy it cannot fund in full ("~10% positions, not
+# more, smaller ones"). The simulators follow the same rule: a buy that cannot
+# reach this fraction of its target size waits for next week instead of being
+# opened as a sliver with whatever cash is left. The 5% allowance covers
+# whole-share rounding and charges, nothing more.
+MIN_FILL_FRACTION = 0.95
+
 # Costs. Indian equity delivery: brokerage is often zero, but STT, exchange
 # charges, stamp duty and GST are not — and slippage on mid/microcaps is the
 # larger cost. Both are configurable per run.
 COST_BPS = 30.0                 # round-trip-ish transaction cost, basis points
 SLIPPAGE_BPS = 25.0             # adverse fill vs the reference price
+
+# Spec v2.3 (amendment 1): idle cash sits in a liquid or overnight fund, so the
+# simulation credits it a fixed yield by default. 6.5% is the middle of the
+# 5-8% band the July 2026 runs bracketed; set it to 0 to model truly idle cash.
+CASH_YIELD_PCT = 6.5
+
+# Spec v2.3 (amendment 4): results are after tax unless a run opts out. See
+# `tax.py` for the model and its stated simplifications.
+APPLY_TAX = True
 
 # Warm-up: the score needs 1 year of candles (12 x 21) and the regime gate needs
 # enough weekly bars for the Supertrend. Weeks before this are not simulated.

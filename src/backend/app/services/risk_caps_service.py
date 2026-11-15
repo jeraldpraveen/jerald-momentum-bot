@@ -26,8 +26,12 @@ from .errors import StepNotReady
 
 log = logging.getLogger(__name__)
 
-def _microcap_symbols() -> set[str]:
-    """Symbols in the Microcap 250 sleeve (for the max-4 cap)."""
+def _microcap_symbols() -> set[str] | None:
+    """Symbols in the Microcap 250 sleeve (for the max-4 cap).
+
+    None — not an empty set — when the list cannot be loaded, so the caller can
+    say the cap was not enforced instead of reporting a clean count of zero.
+    """
     try:
         opt = config.get_universe_option("microcap250")
         df = constituents.fetch_constituents(opt.nse_key)
@@ -35,7 +39,7 @@ def _microcap_symbols() -> set[str]:
     except Exception as exc:  # noqa: BLE001 — cap simply can't bind if unavailable
         log.info("Microcap list unavailable (%s); microcap cap not enforced",
                  type(exc).__name__)
-        return set()
+        return None
 
 
 def _evaluate(cycle: Cycle) -> RiskCapsOutput:
@@ -51,11 +55,13 @@ def _evaluate(cycle: Cycle) -> RiskCapsOutput:
     held = [Position(symbol=str(sym), sector=str(sec), sleeve=str(sl))
             for sym, sec, sl in zip(active["symbol"], active["sector"], active["sleeve"])]
 
+    microcap = _microcap_symbols()
+    microcap_cap_enforced = microcap is not None
     res = apply_caps(
         [RankedName(symbol=c.symbol, rank=c.rank, sector=c.sector)
          for c in tech.candidates if not c.struck],
         held,
-        _microcap_symbols(),
+        microcap or set(),
     )
     kept, buys, skipped = res.kept, res.buys, res.skipped
     open_slots, sector_counts, microcap_count = res.open_slots, res.sector_counts, res.microcap_count
@@ -72,6 +78,11 @@ def _evaluate(cycle: Cycle) -> RiskCapsOutput:
         actions.append(
             f"{unfilled} slot(s) unfilled — that capital STAYS IN CASH until next Friday. "
             "The loop never reaches past rank 15 to force a fill.")
+    if not microcap_cap_enforced:
+        actions.append(
+            f"The Microcap 250 list could not be loaded, so the max-{config.MAX_MICROCAP} "
+            "microcap cap was NOT enforced and the microcap count below is not reliable. "
+            "Count the microcaps in the buy list by hand before trading.")
     if final_size < config.TARGET_PORTFOLIO_MIN:
         actions.append(
             f"Portfolio would be {final_size} names, below the {config.TARGET_PORTFOLIO_MIN} "
@@ -83,7 +94,8 @@ def _evaluate(cycle: Cycle) -> RiskCapsOutput:
         max_per_sector=config.MAX_PER_SECTOR, max_microcap=config.MAX_MICROCAP,
         kept=kept, open_slots=open_slots, buys=buys, skipped=skipped,
         unfilled_slots=unfilled, sector_counts=sector_counts,
-        microcap_count=microcap_count, final_portfolio_size=final_size, actions=actions,
+        microcap_count=microcap_count, final_portfolio_size=final_size,
+        microcap_cap_enforced=microcap_cap_enforced, actions=actions,
     )
 
 

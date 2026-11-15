@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiRequestError } from "../../api/client";
 import type { BacktestMetrics, BacktestResult } from "../../api/types";
 import { LineChart } from "../../components/LineChart";
+import { TaxSummary } from "./TaxSummary";
 
 // Validated categorical slots 1 & 2 for a dark surface (see the palette check:
 // ΔE 26.8 under protanopia, well above the separation floor).
@@ -32,6 +33,8 @@ export function RunResult({ runId }: { runId: string }) {
   const m = res.metrics;
   const b = res.benchmark;
   const edge = m.cagr_pct - b.cagr_pct;
+  // Runs from before Spec v2.3 carry no benchmark label: they used the index.
+  const benchLabel = String(res.config.benchmark_label ?? res.config.index_label);
 
   return (
     <div className="hist-detail">
@@ -45,17 +48,21 @@ export function RunResult({ runId }: { runId: string }) {
         </span>
       </div>
 
-      {/* The headline: did the strategy beat simply holding the index? */}
+      {/* The headline: did the strategy beat simply holding the benchmark? */}
       <div className="port-stats">
         <Stat label="CAGR" value={`${m.cagr_pct}%`}
-              note={`index ${b.cagr_pct}%`} good={edge >= 0} />
-        <Stat label="Sharpe" value={String(m.sharpe)} note={`index ${b.sharpe}`}
+              note={`benchmark ${b.cagr_pct}%`} good={edge >= 0} />
+        <Stat label="Sharpe" value={String(m.sharpe)} note={`benchmark ${b.sharpe}`}
               good={m.sharpe >= b.sharpe} />
         <Stat label="Max drawdown" value={`${m.max_drawdown_pct}%`}
-              note={`index ${b.max_drawdown_pct}%`} good={m.max_drawdown_pct >= b.max_drawdown_pct} />
+              note={`benchmark ${b.max_drawdown_pct}%`} good={m.max_drawdown_pct >= b.max_drawdown_pct} />
         <Stat label="Final equity" value={inr(m.end_equity)}
               note={`from ${inr(m.start_equity)}`} good={m.end_equity >= m.start_equity} />
       </div>
+
+      <p className="muted">Benchmark: buy and hold {benchLabel}.</p>
+
+      <TaxSummary tax={res.tax} benchmarkLabel={benchLabel} />
 
       <div className="bt-tabs">
         {(["chart", "weeks", "trades", "table"] as View[]).map((v) => (
@@ -68,11 +75,11 @@ export function RunResult({ runId }: { runId: string }) {
 
       {view === "chart" && (
         <LineChart
-          ariaLabel="Strategy equity versus buy-and-hold index"
+          ariaLabel={`Strategy equity versus buy-and-hold ${benchLabel}`}
           series={[
             { name: "Strategy", color: STRATEGY,
               points: res.equity_curve.map((p) => ({ x: p.date, y: p.equity })) },
-            { name: "Index", color: BENCHMARK,
+            { name: benchLabel, color: BENCHMARK,
               points: res.benchmark_curve.map((p) => ({ x: p.date, y: p.equity })) },
           ]}
         />
@@ -85,7 +92,7 @@ export function RunResult({ runId }: { runId: string }) {
             "Closed trades": String(res.trade_stats.closed_trades ?? 0),
             "Trade win rate": `${res.trade_stats.win_rate_pct ?? 0}%`,
           }} />
-          <MetricTable title="Buy &amp; hold index" m={b} />
+          <MetricTable title={`Buy &amp; hold ${benchLabel}`} m={b} />
         </div>
       )}
 
@@ -95,7 +102,8 @@ export function RunResult({ runId }: { runId: string }) {
             <thead>
               <tr>
                 <th>Week</th><th>Regime</th><th className="num">Eligible</th>
-                <th>Buys</th><th>Exits</th><th>Stops hit</th>
+                <th>Buys</th><th>Exits</th><th>Unfilled buys</th><th>Unfilled exits</th>
+                <th>Blocked buys</th><th>Stops hit</th>
                 <th className="num">Held</th><th className="num">Equity</th>
               </tr>
             </thead>
@@ -111,6 +119,9 @@ export function RunResult({ runId }: { runId: string }) {
                   <td className="num">{w.eligible}</td>
                   <td className="flags">{w.buys.join(", ")}</td>
                   <td className="flags">{w.exits.join(", ")}</td>
+                  <td className="flags">{(w.unfilled_buys ?? []).join(", ")}</td>
+                  <td className="flags">{(w.unfilled_exits ?? []).join(", ")}</td>
+                  <td className="flags">{(w.blocked_buys ?? []).join(", ")}</td>
                   <td className="flags">{w.stops_hit.join(", ")}</td>
                   <td className="num">{w.held.length}</td>
                   <td className="num">{inr(w.equity)}</td>
@@ -159,7 +170,7 @@ export function RunResult({ runId }: { runId: string }) {
           <table className="scan-table">
             <thead>
               <tr>
-                <th>Date</th><th className="num">Strategy</th><th className="num">Index</th>
+                <th>Date</th><th className="num">Strategy</th><th className="num">{benchLabel}</th>
                 <th className="num">Cash</th><th className="num">Positions</th><th>Regime</th>
               </tr>
             </thead>

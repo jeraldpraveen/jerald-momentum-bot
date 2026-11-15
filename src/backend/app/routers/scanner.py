@@ -10,6 +10,7 @@ from ..schemas.cycle import Cycle
 from ..schemas.scanner import (
     FormulaValidateRequest,
     FormulaValidateResponse,
+    FrozenFormulaOut,
     PartBRunRequest,
     UniverseOptionOut,
 )
@@ -24,9 +25,21 @@ def validate_formula(body: FormulaValidateRequest) -> FormulaValidateResponse:
     formula = body.formula.strip() or scoring_formula.DEFAULT_FORMULA
     try:
         compiled = scoring_formula.compile_formula(formula)
-        return FormulaValidateResponse(ok=True, terms=sorted(compiled.used_terms))
+        return FormulaValidateResponse(ok=True, terms=sorted(compiled.used_terms),
+                                       frozen=scoring_formula.is_frozen(formula))
     except scoring_formula.FormulaError as exc:
         return FormulaValidateResponse(ok=False, error=str(exc))
+
+
+@router.get("/scanner/frozen-formula", response_model=FrozenFormulaOut)
+def frozen_formula() -> FrozenFormulaOut:
+    """The formula the Friday ritual scores with — read-only since Spec v2.3."""
+    return FrozenFormulaOut(
+        formula=scoring_formula.FROZEN_FORMULA,
+        reason=("Walk-forward sweeps showed formula choice does not transfer out of "
+                "sample, so re-tuning it fits noise. Research alternatives in the "
+                "Backtest tab."),
+    )
 
 
 @router.get("/universe-options", response_model=list[UniverseOptionOut])

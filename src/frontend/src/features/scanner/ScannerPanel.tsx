@@ -3,22 +3,18 @@ import { api, ApiRequestError } from "../../api/client";
 import type { Cycle, ScannerFilters, UniverseOption } from "../../api/types";
 import { MultiSelect } from "../../components/MultiSelect";
 import { ReopenStepButton } from "../../components/ReopenStepButton";
+import { FROZEN_FORMULA, FrozenFormula } from "./FrozenFormula";
 
 interface Props {
   cycle: Cycle;
   onCycleChange: (cycle: Cycle) => void;
 }
 
-const DEFAULT_FORMULA =
-  "((60% * 6 Month Performance) + (30% * 3 Month Performance) + (10% * 1 Month Performance)) " +
-  "/ (3 Month Volatility + 1 Month Volatility)";
+const DEFAULT_UNIVERSES = ["midsmall400", "microcap250"];
 
-const TERM_HELP =
-  "Terms: 1/3/6/9 Month & 1 Year  ×  Performance | Volatility.  " +
-  "Operators: + - × ÷ ( ).  Weights in %.";
-
-// Part B — Stock Scoring: the Jerald Score. Formula console modeled on the
-// Sigma Scanner vocabulary but computed on correct 126-candle windows (no Excel).
+// Part B — Stock Scoring: the Jerald Score, computed on correct 126-candle
+// windows (no Excel). The formula is FROZEN since Spec v2.3 — it is shown, not
+// edited, and the run never sends one (the backend would refuse it anyway).
 export function ScannerPanel({ cycle, onCycleChange }: Props) {
   const step = cycle.steps.part_b_scanner;
   const out = step.output;
@@ -28,13 +24,16 @@ export function ScannerPanel({ cycle, onCycleChange }: Props) {
 
   const [universes, setUniverses] = useState<UniverseOption[]>([]);
   const [sectors, setSectors] = useState<string[]>([]);
-  const [universeIds, setUniverseIds] = useState<string[]>(out?.universe_ids ?? ["holdings"]);
+  // The Rulebook scans the two indices. Defaulting to "holdings" ranked the
+  // portfolio against itself, where nothing can ever rank badly enough to exit.
+  const [universeIds, setUniverseIds] = useState<string[]>(
+    out?.universe_ids ?? DEFAULT_UNIVERSES);
   const [filters, setFilters] = useState<ScannerFilters>(() => {
     const base = out?.filters ?? { sectors: [], price_min: null, price_max: null, as_of: null };
     return { ...base, as_of: base.as_of ?? today }; // default the date to today
   });
-  const [formula, setFormula] = useState<string>(out?.formula ?? DEFAULT_FORMULA);
-  const [formulaError, setFormulaError] = useState<string | null>(null);
+  const [frozen, setFrozen] = useState<{ formula: string; reason?: string }>(
+    { formula: FROZEN_FORMULA });
   const [busy, setBusy] = useState<null | "run" | "advance">(null);
   const [error, setError] = useState<string | null>(null);
   // The shown results become stale the moment any input changes; re-run to refresh.
@@ -43,6 +42,8 @@ export function ScannerPanel({ cycle, onCycleChange }: Props) {
 
   useEffect(() => {
     api.getUniverseOptions().then(setUniverses);
+    // Best-effort: the built-in copy is shown until (and unless) this answers.
+    api.getFrozenFormula().then(setFrozen).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -64,26 +65,11 @@ export function ScannerPanel({ cycle, onCycleChange }: Props) {
     setFilters((f) => ({ ...f, ...patch }));
     setDirty(true);
   }
-  function changeFormula(next: string) {
-    setFormula(next);
-    setFormulaError(null);
-    setDirty(true);
-  }
-
-  async function checkFormula() {
-    try {
-      const res = await api.validateFormula(formula);
-      setFormulaError(res.ok ? null : res.error);
-    } catch {
-      setFormulaError(null); // validation is best-effort; run will surface real errors
-    }
-  }
-
   async function run() {
     setBusy("run");
     setError(null);
     try {
-      onCycleChange(await api.runPartB({ universe_ids: universeIds, formula, filters }));
+      onCycleChange(await api.runPartB({ universe_ids: universeIds, filters }));
       setDirty(false);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : String(e));
@@ -155,30 +141,13 @@ export function ScannerPanel({ cycle, onCycleChange }: Props) {
         </label>
       </div>
 
-      {/* Scoring console */}
-      <div className="scan-console">
-        <div className="scan-console-head">
-          <span>Scoring console</span>
-          <button type="button" className="link-btn" onClick={() => changeFormula(DEFAULT_FORMULA)}
-                  disabled={inputsDisabled}>Reset to default</button>
-        </div>
-        <textarea
-          className="scan-formula-input"
-          rows={3}
-          value={formula}
-          disabled={inputsDisabled}
-          onChange={(e) => changeFormula(e.target.value)}
-          onBlur={checkFormula}
-          spellCheck={false}
-        />
-        <div className="scan-help">{TERM_HELP}</div>
-        {formulaError && <p className="error-box">{formulaError}</p>}
-      </div>
+      {/* The score — read-only since Spec v2.3 */}
+      <FrozenFormula formula={frozen.formula} reason={frozen.reason} />
 
       {/* Run — directly under the console */}
       <div className="panel-actions">
         <button onClick={run}
-                disabled={busy !== null || advanced || universeIds.length === 0 || !!formulaError}>
+                disabled={busy !== null || advanced || universeIds.length === 0}>
           {busy === "run" ? "Scoring…" : out ? "Re-run" : "Run scoring"}
         </button>
         {advanced && (

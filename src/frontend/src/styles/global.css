@@ -631,3 +631,12 @@ button.ghost:hover:not(:disabled) { background: var(--surface-2); }
 /* EXITED row: inline "sold @ <price>" input plus the realised P&L for that name. */
 .exit-px-cell { display: inline-flex; align-items: center; gap: 6px; }
 .exit-px-label { color: var(--muted); font-size: 0.6875rem; }
+
+/* Spec v2.3 — the frozen scoring formula is shown, not edited. */
+.scan-formula-frozen {
+  margin: 0;
+  white-space: pre-wrap;
+  cursor: default;
+  opacity: 0.9;
+}
+.tax-summary { margin: 14px 0; }

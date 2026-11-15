@@ -28,7 +28,7 @@ def sma(series: pd.Series, period: int) -> float | None:
 
 
 def rsi(close: pd.Series, period: int = 14) -> float | None:
-    """Wilder's RSI. None when there isn't enough history."""
+    """Wilder's RSI. None when there isn't enough history, or no price movement."""
     if len(close) < period + 1:
         return None
     delta = close.diff().dropna()
@@ -37,6 +37,10 @@ def rsi(close: pd.Series, period: int = 14) -> float | None:
     # Wilder smoothing == EMA with alpha = 1/period.
     avg_gain = gain.ewm(alpha=1 / period, adjust=False).mean().iloc[-1]
     avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean().iloc[-1]
+    if avg_gain == 0 and avg_loss == 0:
+        # A flat series never moved: RSI is 0/0, undefined. Calling that 100
+        # ("overbought") struck halted and illiquid names for the wrong reason.
+        return None
     if avg_loss == 0:
         return 100.0
     rs = avg_gain / avg_loss

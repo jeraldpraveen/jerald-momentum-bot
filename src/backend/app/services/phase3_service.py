@@ -1,8 +1,13 @@
-"""Phase 3 / Step-8 — Monday execution plan (Spec v2.2 §3.1-3.4).
+"""Phase 3 / Step-8 — Monday execution plan (Spec v2.3 §3.1-3.5).
 
 Builds the by-hand checklist for the open. Produces instructions and indicative
-quantities only — no broker calls, no orders (manual until the Jan-2027
-promotion). Works for a RED week too, where the plan is exits-only.
+quantities only — no broker calls, no orders (manual until promotion, which the
+shadow ladder puts no earlier than `config.earliest_promotion_date()`). Works
+for a RED week too, where the plan is exits, then parking the proceeds.
+
+Parking (v2.3): cash the plan does not deploy never sits idle. RED-week
+proceeds and any slot-short remainder go into a liquid or overnight fund; on a
+GREEN week, whatever the buys need beyond the exit proceeds is redeemed first.
 """
 
 from __future__ import annotations
@@ -164,8 +169,24 @@ def _build(cycle: Cycle, body: Phase3RunRequest) -> Phase3Output:
             f"Available cash Rs {available:,.0f} is below one 10% position "
             f"(Rs {capital * 0.10:,.0f}). Nothing fits without exiting more or adding cash.")
 
+    # --- 3.5 parking: where undeployed cash goes, and what must come back ---
+    is_red = gate.regime == "RED"
+    has_candidates = bool(caps and caps.buys)
+    fund = config.PARKING_INSTRUMENT
+    # RED: every rupee the exits free is parked. GREEN: whatever is still free
+    # once the funded buys are paid for (small change is not worth a transfer).
+    park_amount = round(est_proceeds, 2) if is_red else (leftover if leftover > 100 else 0.0)
+    # GREEN buys are paid from the exits first; the rest was parked on an
+    # earlier Monday and has to be back in the trading account before buying.
+    redeem_amount = round(max(0.0, est_deployment - est_proceeds), 2) if funded_buys else 0.0
+
     # --- the checklist -----------------------------------------------------
     checklist: list[str] = []
+    if redeem_amount > 100:
+        checklist.append(
+            f"BEFORE THE OPEN — have Rs {redeem_amount:,.0f} back from your {fund} and in "
+            "the trading account (this week's exits cover the rest). Check your fund's "
+            "payout time and redeem early enough.")
     if exits:
         checklist.append("09:15 — LIQUIDATIONS FIRST (one ticker at a time):")
         for e in exits:
@@ -188,20 +209,34 @@ def _build(cycle: Cycle, body: Phase3RunRequest) -> Phase3Output:
         for b in funded_buys:
             hint = f" (~{b.indicative_stop} if it fills near {b.last_close})" if b.indicative_stop else ""
             checklist.append(f"   • {b.symbol} stop{hint}")
-    elif caps and caps.buys:
+    elif has_candidates:
         checklist.append("No buys fit your available cash this week — see the note below.")
+    elif is_red:
+        if park_amount:
+            checklist.append(
+                f"Then — PARK the proceeds (~Rs {park_amount:,.0f}) in your {fund} the same "
+                "day. No buys on a RED week; the money waits there for the first GREEN Friday.")
+        else:
+            checklist.append(
+                f"No buys on a RED week — your cash stays parked in your {fund} until the "
+                "first GREEN Friday.")
+    elif park_amount:
+        checklist.append(
+            f"No buys this week — park the Rs {park_amount:,.0f} you have free in your "
+            f"{fund} until Friday.")
     else:
-        checklist.append("No buys this week — that capital stays in cash until Friday.")
+        checklist.append(
+            f"No buys this week — your cash stays parked in your {fund} until Friday.")
 
     if deferred_buys:
         checklist.append(
             f"DEFERRED (no cash this week): "
             f"{', '.join(f'{b.symbol} (rank {b.rank})' for b in deferred_buys)}. "
             "They stay candidates — re-check next Friday.")
-    if leftover > 100:
+    if has_candidates and leftover > 100:
         checklist.append(
-            f"Rs {leftover:,.0f} stays in cash — a slot short of the next 10% buy. "
-            "Park it in your liquid fund, don't force an undersized position.")
+            f"Rs {leftover:,.0f} is a slot short of the next 10% buy — park it in your "
+            f"{fund}, don't force an undersized position.")
 
     checklist.append("Leave grandfathered legacy positions untouched — never trim them to 10%.")
     checklist.append("Done — clear the queues and return to mid-week monitoring (stops only).")
@@ -209,7 +244,8 @@ def _build(cycle: Cycle, body: Phase3RunRequest) -> Phase3Output:
     actions = [
         f"{gate.regime} week — {len(exits)} exit(s), {len(funded_buys)} buy(s)"
         + (f", {len(deferred_buys)} deferred" if deferred_buys else "") + ".",
-        "Execute by hand at the open; this tool places no orders.",
+        "Execute by hand at the open; this tool places no orders "
+        f"(manual until promotion, not before {config.earliest_promotion_date():%d %b %Y}).",
     ]
     return Phase3Output(
         as_of=gate.week_end, regime=gate.regime,
@@ -221,6 +257,9 @@ def _build(cycle: Cycle, body: Phase3RunRequest) -> Phase3Output:
         exits=exits, buys=buys,
         est_proceeds=round(est_proceeds, 2) or None,
         est_deployment=round(est_deployment, 2) or None,
+        parking_instrument=fund,
+        park_amount=park_amount or None,
+        redeem_amount=redeem_amount or None,
         checklist=checklist, warnings=warnings, actions=actions,
     )
 

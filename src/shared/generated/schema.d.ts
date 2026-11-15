@@ -104,6 +104,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/backtest/benchmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Benchmarks
+         * @description What a run can be measured against, and which total-return files exist.
+         */
+        get: operations["list_benchmarks_api_backtest_benchmarks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/backtest/index-coverage": {
         parameters: {
             query?: never;
@@ -488,6 +508,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scanner/frozen-formula": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Frozen Formula
+         * @description The formula the Friday ritual scores with — read-only since Spec v2.3.
+         */
+        get: operations["frozen_formula_api_scanner_frozen_formula_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/universe-options": {
         parameters: {
             query?: never;
@@ -855,6 +895,10 @@ export interface components {
             benchmark?: {
                 [key: string]: unknown;
             };
+            /** Tax */
+            tax?: {
+                [key: string]: unknown;
+            };
             /** Trade Stats */
             trade_stats?: {
                 [key: string]: unknown;
@@ -898,7 +942,7 @@ export interface components {
             label: string;
             /**
              * Index Id
-             * @default midsmall400
+             * @default nifty500
              */
             index_id: string;
             /**
@@ -953,14 +997,57 @@ export interface components {
             alt_allocation_pct: number;
             /**
              * Cash Yield Pct
-             * @default 0
+             * @default 6.5
              */
             cash_yield_pct: number;
+            /** Benchmark Id */
+            benchmark_id?: string | null;
+            /**
+             * Apply Tax
+             * @default true
+             */
+            apply_tax: boolean;
             /**
              * Fetch Prices
              * @default true
              */
             fetch_prices: boolean;
+        };
+        /**
+         * BenchmarkOptionOut
+         * @description A selectable benchmark and whether its data is actually on disk.
+         */
+        BenchmarkOptionOut: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Source */
+            source: string;
+            /**
+             * Total Return
+             * @default false
+             */
+            total_return: boolean;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            /** First Session */
+            first_session?: string | null;
+            /** Last Session */
+            last_session?: string | null;
+            /**
+             * How To
+             * @default
+             */
+            how_to: string;
         };
         /** BuildUniverseRequest */
         BuildUniverseRequest: {
@@ -1157,6 +1244,29 @@ export interface components {
              * @default []
              */
             terms: string[];
+            /**
+             * Frozen
+             * @default false
+             */
+            frozen: boolean;
+        };
+        /**
+         * FrozenFormulaOut
+         * @description The one formula the live ritual scores with (Spec v2.3).
+         */
+        FrozenFormulaOut: {
+            /** Formula */
+            formula: string;
+            /**
+             * Since
+             * @default Spec v2.3
+             */
+            since: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
         };
         /**
          * FundamentalAssessment
@@ -1243,6 +1353,11 @@ export interface components {
             struck_count: number;
             /** Passed Count */
             passed_count: number;
+            /**
+             * Surveillance Checked
+             * @default true
+             */
+            surveillance_checked: boolean;
             /**
              * Actions
              * @default []
@@ -1645,6 +1760,15 @@ export interface components {
             /** Est Deployment */
             est_deployment?: number | null;
             /**
+             * Parking Instrument
+             * @default
+             */
+            parking_instrument: string;
+            /** Park Amount */
+            park_amount?: number | null;
+            /** Redeem Amount */
+            redeem_amount?: number | null;
+            /**
              * Checklist
              * @default []
              */
@@ -1859,6 +1983,16 @@ export interface components {
             indicator: string;
             /** Data Source */
             data_source: string;
+            /**
+             * Ratified Index
+             * @default true
+             */
+            ratified_index: boolean;
+            /**
+             * Week Matches Cycle
+             * @default true
+             */
+            week_matches_cycle: boolean;
             /** Previous Regime */
             previous_regime?: ("GREEN" | "RED") | null;
             /**
@@ -1933,6 +2067,11 @@ export interface components {
             microcap_count: number;
             /** Final Portfolio Size */
             final_portfolio_size: number;
+            /**
+             * Microcap Cap Enforced
+             * @default true
+             */
+            microcap_cap_enforced: boolean;
             /**
              * Actions
              * @default []
@@ -2345,7 +2484,7 @@ export interface components {
             label: string;
             /**
              * Index Id
-             * @default midsmall400
+             * @default nifty500
              */
             index_id: string;
             /**
@@ -2757,6 +2896,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AltAssetOption"][];
+                };
+            };
+        };
+    };
+    list_benchmarks_api_backtest_benchmarks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkOptionOut"][];
                 };
             };
         };
@@ -3561,6 +3720,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    frozen_formula_api_scanner_frozen_formula_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FrozenFormulaOut"];
                 };
             };
         };

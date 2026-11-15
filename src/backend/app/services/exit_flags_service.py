@@ -14,7 +14,9 @@ import datetime as dt
 import logging
 
 from .. import config
-from ..domain.strategy import DROPPED, Position, audit_holdings  # noqa: F401
+from ..domain.strategy import (  # noqa: F401
+    DATA_GAP, DROPPED, SCREENED_OUT, Position, audit_holdings,
+)
 from ..repositories import ledger_repository as ledger
 from ..schemas.common import StepStatus
 from ..schemas.cycle import Cycle, StepId
@@ -49,6 +51,19 @@ def _audit(cycle: Cycle) -> ExitFlagsOutput:
             if exits else "No holdings breach the exit rules — nothing to mark",
             f"Rank exit threshold: > {config.RANK_EXIT_THRESHOLD}",
         ]
+    # A holding the scan could not rank is kept, never sold on a guess — but the
+    # audit must say it was not audited, or "kept" reads as "checked and fine".
+    unpriced = [r.symbol for r in rows if DATA_GAP in r.reasons]
+    screened = [r.symbol for r in rows if SCREENED_OUT in r.reasons]
+    if unpriced:
+        actions.append(
+            f"NOT AUDITED — no current price for {', '.join(unpriced)}. Kept, not flagged: "
+            "a data gap is not an exit signal. Refresh prices and re-run the scan "
+            "before relying on this audit.")
+    if screened:
+        actions.append(
+            f"NOT AUDITED — {', '.join(screened)} fall outside this scan's sector / price "
+            "filter. Kept, not flagged. Re-run the scan without the filter to rank them.")
     return ExitFlagsOutput(
         as_of=scan.as_of,
         rank_threshold=config.RANK_EXIT_THRESHOLD,

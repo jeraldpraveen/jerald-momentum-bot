@@ -63,6 +63,15 @@ DEFAULT_FORMULA = (
 )
 
 
+# Spec v2.3 (amendment 3): the LIVE score is frozen at this formula. The July
+# 2026 walk-forward sweeps showed that a formula chosen on 2006-2016 does not
+# reliably win afterwards (on the 400+250 universe the training winner landed
+# in the 25th percentile out of sample), so re-tuning it against the backtest
+# fits noise. Research may still try any formula in the Backtest tab; the Friday
+# ritual may not. Changing this line is a Rulebook amendment, not a code tweak.
+FROZEN_FORMULA = DEFAULT_FORMULA
+
+
 class FormulaError(ValueError):
     """Raised for an invalid or unsafe scoring formula."""
 
@@ -89,6 +98,22 @@ def _preprocess(text: str) -> str:
     # Percentages: 60% -> (60/100).
     s = re.sub(r"(\d+(?:\.\d+)?)\s*%", r"(\1/100)", s)
     return s
+
+
+def is_frozen(text: str) -> bool:
+    """True if `text` is the frozen live formula.
+
+    Blank means "use the default", which IS the frozen formula. Spacing, case
+    and the operator aliases are ignored, so a re-typed copy still matches; any
+    change to a weight, a term or the structure does not.
+    """
+    if not text.strip():
+        return True
+
+    def canonical(s: str) -> str:
+        return re.sub(r"\s+", "", _preprocess(s)).lower()
+
+    return canonical(text) == canonical(FROZEN_FORMULA)
 
 
 _ALLOWED_NODES = (

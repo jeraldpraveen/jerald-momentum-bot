@@ -1,8 +1,9 @@
-"""Phase 3 / Step-8 — Monday execution plan schemas (Spec v2.2 §3.1-3.4).
+"""Phase 3 / Step-8 — Monday execution plan schemas (Spec v2.3 §3.1-3.5).
 
 A printable checklist the user executes BY HAND at the open (09:15-09:45).
-There is no broker API until the January 2027 promotion — this step produces
-instructions and quantities, never orders.
+There is no broker API until promotion (not before 29 January 2027, when the
+twelve shadow weeks that restarted on 2026-11-13 complete) — this step
+produces instructions and quantities, never orders.
 
 Ordering is mandatory:
   3.1 LIQUIDATIONS FIRST — per ticker: cancel THAT position's GTT, then sell.
@@ -12,6 +13,10 @@ Ordering is mandatory:
       positions are left untouched (never trimmed to 10%).
   3.3 Stops: stop = FILL price x 0.80, GTT placed the same session.
   3.4 Clear the queues; back to mid-week monitoring.
+  3.5 Parking (v2.3): cash the plan does not deploy goes into a liquid or
+      overnight fund the same day — RED-week proceeds, and any slot-short
+      remainder. On a GREEN week, what the buys need beyond the exit proceeds
+      is redeemed from that fund first.
 """
 
 from __future__ import annotations
@@ -78,6 +83,14 @@ class Phase3Output(BaseModel):
 
     est_proceeds: Optional[float] = None
     est_deployment: Optional[float] = None
+
+    # Spec v2.3 parking. `park_amount` is what goes INTO the fund this Monday
+    # (RED proceeds, or a slot-short remainder); `redeem_amount` is what has to
+    # come OUT of it first so the buys can be funded.
+    parking_instrument: str = ""
+    park_amount: Optional[float] = None
+    redeem_amount: Optional[float] = None
+
     checklist: list[str] = []                 # ordered, human-executable steps
     warnings: list[str] = []
     actions: list[str] = []

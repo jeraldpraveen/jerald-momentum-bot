@@ -39,6 +39,7 @@ def build_candidates(
     liquidity_floor_cr: float | None = None,
     min_listing_days: int | None = None,
     median_tv_window: int | None = None,
+    max_price_age_days: int | None = None,
 ) -> list[ScannerCandidate]:
     """Score and rank a universe.
 
@@ -46,11 +47,18 @@ def build_candidates(
     already sliced to the as-of date}. Eligible names are ranked 1..n by score
     descending; ineligible names keep rank=None and sort after, each carrying
     the flags that explain why.
+
+    When `filters.as_of` is set, a name whose latest bar is more than
+    `max_price_age_days` older than it is flagged `stale_price` and not ranked.
+    Without that, a halted stock — or a price refresh that silently failed —
+    was scored on a series that stopped months ago and ranked as if current.
     """
     # Resolved here, not as default args — see the note in caps.apply_caps.
     liquidity_floor_cr = config.LIQUIDITY_FLOOR_CR if liquidity_floor_cr is None else liquidity_floor_cr
     min_listing_days = config.MIN_LISTING_DAYS if min_listing_days is None else min_listing_days
     median_tv_window = config.MEDIAN_TV_WINDOW if median_tv_window is None else median_tv_window
+    max_price_age_days = (config.MAX_PRICE_AGE_DAYS if max_price_age_days is None
+                          else max_price_age_days)
 
     filters = filters or ScannerFilters()
     candidates: list[ScannerCandidate] = []
@@ -73,6 +81,11 @@ def build_candidates(
         score = scoring_formula.score(close, compiled)
 
         eligible = True
+        if filters.as_of is not None:
+            age = (filters.as_of - pd.Timestamp(df.index[-1]).date()).days
+            if age > max_price_age_days:
+                eligible = False
+                flags.append("stale_price")
         if med_tv is None or med_tv < liquidity_floor_cr:
             eligible = False
             flags.append("illiquid")

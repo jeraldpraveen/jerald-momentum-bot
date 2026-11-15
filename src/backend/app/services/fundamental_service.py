@@ -59,13 +59,20 @@ def _check_interest_cover(a: FundamentalAssessment, auto: float | None,
     return CheckResult(verdict=PASS, value=value, detail=f"interest coverage {shown}")
 
 
-def _check_pending_action(a: FundamentalAssessment, surveillance: str) -> CheckResult:
+def _check_pending_action(a: FundamentalAssessment, surveillance: str,
+                          checked: bool = True) -> CheckResult:
     # NSE surveillance is a cited regulatory action — it strikes automatically,
     # and a manual "none" cannot override published exchange data.
     if surveillance:
         return CheckResult(verdict=STRIKE, detail=f"under {surveillance}")
     if a.pending_action:
         return CheckResult(verdict=STRIKE, detail="pending corporate/regulatory action (manual)")
+    if not checked:
+        # The lists could not be fetched. Saying "not on ASM/GSM" here would cite
+        # a check that never ran — and a manual "none pending" cannot vouch for
+        # exchange data nobody saw. Unverified, whatever was typed in.
+        return CheckResult(verdict=UNVERIFIED,
+                           detail="NSE surveillance lists unavailable — ASM/GSM NOT checked")
     if a.pending_action is None:
         # Surveillance was checked; mergers/SEBI cases still need a human.
         return CheckResult(verdict=UNVERIFIED, detail="not on ASM/GSM; other actions not checked")
@@ -94,19 +101,23 @@ def _evaluate(cycle: Cycle, body: PartDFundamentalRunRequest) -> FundamentalOutp
         and c.symbol not in held
     ]
     pool.sort(key=lambda c: c.rank or 10**9)
-    surv_map = surveillance.fetch_surveillance()   # NSE ASM/GSM, cached daily
+    fetched = surveillance.fetch_surveillance()     # NSE ASM/GSM, cached daily
+    surveillance_checked = fetched is not None       # None = NSE could not be reached
+    surv_map = fetched or {}
 
     rows: list[FundamentalCandidate] = []
     for c in pool:
         a = body.assessments.get(c.symbol, FundamentalAssessment())
         is_fin = fundamentals.is_financial(c.sector)
-        auto_ic = fundamentals.get_interest_coverage(f"{c.symbol}.NS") if not is_fin else None
+        auto_ic = (fundamentals.get_interest_coverage(f"{c.symbol}.NS",
+                                                      refresh=body.refresh_auto)
+                   if not is_fin else None)
         surv = surv_map.get(c.symbol.upper(), "")
 
         checks = {
             "pledging": _check_pledging(a),
             "interest_cover": _check_interest_cover(a, auto_ic, is_fin),
-            "pending_action": _check_pending_action(a, surv),
+            "pending_action": _check_pending_action(a, surv, surveillance_checked),
             "listing_age": _check_listing_age(c.listed_days),
         }
         strikes = [r.detail for r in checks.values() if r.verdict == STRIKE]
@@ -127,9 +138,15 @@ def _evaluate(cycle: Cycle, body: PartDFundamentalRunRequest) -> FundamentalOutp
         "Strikes require cited data; blanks are 'unverified' and pass with a flag."
         if unverified else "All checks cited.",
     ]
+    if not surveillance_checked:
+        actions.append(
+            "NSE surveillance lists (ASM/GSM) could not be fetched — that check did NOT "
+            "run this week. Every candidate is unverified on pending regulatory action; "
+            "check the exchange lists by hand before buying.")
     return FundamentalOutput(
         as_of=scan.as_of, rank_window=config.VETO_RANK_WINDOW, candidates=rows,
-        struck_count=struck, passed_count=len(rows) - struck, actions=actions,
+        struck_count=struck, passed_count=len(rows) - struck,
+        surveillance_checked=surveillance_checked, actions=actions,
     )
 
 

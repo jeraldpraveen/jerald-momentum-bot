@@ -211,6 +211,32 @@
         }
       }
     },
+    "/api/backtest/benchmarks": {
+      "get": {
+        "tags": [
+          "backtest"
+        ],
+        "summary": "List Benchmarks",
+        "description": "What a run can be measured against, and which total-return files exist.",
+        "operationId": "list_benchmarks_api_backtest_benchmarks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BenchmarkOptionOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Benchmarks Api Backtest Benchmarks Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/backtest/index-coverage": {
       "get": {
         "tags": [
@@ -1256,6 +1282,28 @@
         }
       }
     },
+    "/api/scanner/frozen-formula": {
+      "get": {
+        "tags": [
+          "part-b"
+        ],
+        "summary": "Frozen Formula",
+        "description": "The formula the Friday ritual scores with \u2014 read-only since Spec v2.3.",
+        "operationId": "frozen_formula_api_scanner_frozen_formula_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrozenFormulaOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/universe-options": {
       "get": {
         "tags": [
@@ -1849,6 +1897,11 @@
             "type": "object",
             "title": "Benchmark"
           },
+          "tax": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Tax"
+          },
           "trade_stats": {
             "additionalProperties": true,
             "type": "object",
@@ -1920,7 +1973,7 @@
           "index_id": {
             "type": "string",
             "title": "Index Id",
-            "default": "midsmall400"
+            "default": "nifty500"
           },
           "filter_id": {
             "type": "string",
@@ -2026,7 +2079,23 @@
             "maximum": 20.0,
             "minimum": 0.0,
             "title": "Cash Yield Pct",
-            "default": 0.0
+            "default": 6.5
+          },
+          "benchmark_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmark Id"
+          },
+          "apply_tax": {
+            "type": "boolean",
+            "title": "Apply Tax",
+            "default": true
           },
           "fetch_prices": {
             "type": "boolean",
@@ -2040,6 +2109,72 @@
         ],
         "title": "BacktestRunRequest",
         "description": "Everything a run needs. Every strategy threshold is a knob, so the later\nML work can sweep them without code changes."
+      },
+      "BenchmarkOptionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "total_return": {
+            "type": "boolean",
+            "title": "Total Return",
+            "default": false
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "default": false
+          },
+          "first_session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Session"
+          },
+          "last_session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Session"
+          },
+          "how_to": {
+            "type": "string",
+            "title": "How To",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "source"
+        ],
+        "title": "BenchmarkOptionOut",
+        "description": "A selectable benchmark and whether its data is actually on disk."
       },
       "BuildUniverseRequest": {
         "properties": {
@@ -2521,6 +2656,11 @@
             "type": "array",
             "title": "Terms",
             "default": []
+          },
+          "frozen": {
+            "type": "boolean",
+            "title": "Frozen",
+            "default": false
           }
         },
         "type": "object",
@@ -2528,6 +2668,30 @@
           "ok"
         ],
         "title": "FormulaValidateResponse"
+      },
+      "FrozenFormulaOut": {
+        "properties": {
+          "formula": {
+            "type": "string",
+            "title": "Formula"
+          },
+          "since": {
+            "type": "string",
+            "title": "Since",
+            "default": "Spec v2.3"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "formula"
+        ],
+        "title": "FrozenFormulaOut",
+        "description": "The one formula the live ritual scores with (Spec v2.3)."
       },
       "FundamentalAssessment": {
         "properties": {
@@ -2701,6 +2865,11 @@
           "passed_count": {
             "type": "integer",
             "title": "Passed Count"
+          },
+          "surveillance_checked": {
+            "type": "boolean",
+            "title": "Surveillance Checked",
+            "default": true
           },
           "actions": {
             "items": {
@@ -3510,6 +3679,33 @@
             ],
             "title": "Est Deployment"
           },
+          "parking_instrument": {
+            "type": "string",
+            "title": "Parking Instrument",
+            "default": ""
+          },
+          "park_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Park Amount"
+          },
+          "redeem_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redeem Amount"
+          },
           "checklist": {
             "items": {
               "type": "string"
@@ -3981,6 +4177,16 @@
             "type": "string",
             "title": "Data Source"
           },
+          "ratified_index": {
+            "type": "boolean",
+            "title": "Ratified Index",
+            "default": true
+          },
+          "week_matches_cycle": {
+            "type": "boolean",
+            "title": "Week Matches Cycle",
+            "default": true
+          },
           "previous_regime": {
             "anyOf": [
               {
@@ -4170,6 +4376,11 @@
           "final_portfolio_size": {
             "type": "integer",
             "title": "Final Portfolio Size"
+          },
+          "microcap_cap_enforced": {
+            "type": "boolean",
+            "title": "Microcap Cap Enforced",
+            "default": true
           },
           "actions": {
             "items": {
@@ -5356,7 +5567,7 @@
           "index_id": {
             "type": "string",
             "title": "Index Id",
-            "default": "midsmall400"
+            "default": "nifty500"
           },
           "filter_id": {
             "type": "string",

@@ -25,14 +25,21 @@ tests/               pytest (unit + API integration)
 ## Run
 
 ```
-python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --reload   # http://127.0.0.1:8000  (docs at /docs)
-python -m pytest                          # from src/backend
-python scripts/export_openapi.py          # regenerate shared OpenAPI schema
+py -3.14 -m pip install -r requirements.txt
+py -3.14 -m uvicorn app.main:app --reload   # http://127.0.0.1:8000  (docs at /docs)
+py -3.14 -m pytest                          # from src/backend
+py -3.14 -m pytest --cov=app --cov-report=term-missing
+py -3.14 scripts/export_openapi.py          # regenerate shared OpenAPI schema
 ```
 
-Note (Windows PowerShell): use `python -m uvicorn` (the `uvicorn.exe` shim may
-not be on PATH), and run commands one per line — PowerShell 5.1 has no `&&`.
+Note (Windows PowerShell): use `py -3.14 -m ...` — the project's packages are
+installed for Python 3.14 only, and the `uvicorn.exe` shim may not be on PATH.
+Run commands one per line — PowerShell 5.1 has no `&&`.
+
+Since Spec v2.3 the gate defaults to NIFTY 500, the Part B formula is frozen
+(any other formula is refused with `409 formula_frozen`), the Monday plan
+parks undeployed cash in a liquid or overnight fund, and backtests are after
+tax by default. See [Strategy.md](../../Strategy.md) for the amendment log.
 
 ## Part A flow (built)
 

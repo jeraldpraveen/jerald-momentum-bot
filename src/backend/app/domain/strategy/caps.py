@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from ... import config
 from ...schemas.risk_caps import MICROCAP_SLEEVE, PortfolioSlot, SelectedBuy, SkippedCandidate
+from .sectors import canonical_sector
 from .types import Position, RankedName
 
 SECTOR_CAP, MICROCAP_CAP, SLOTS_FULL = "sector_cap", "microcap_cap", "slots_full"
@@ -66,7 +67,10 @@ def apply_caps(
         for p in held
     ]
 
-    sector_counts: Counter[str] = Counter(k.sector for k in kept)
+    # Counted by NSE industry, not by label text: a holding recorded as "Auto
+    # Components" and a candidate listed under "Automobile and Auto Components"
+    # are the same sector, and the cap has to see them as one.
+    sector_counts: Counter[str] = Counter(canonical_sector(k.sector) for k in kept)
     microcap_count = sum(1 for k in kept if k.sleeve == MICROCAP_SLEEVE)
     open_slots = max(0, target_max - len(kept))
 
@@ -79,7 +83,8 @@ def apply_caps(
             skipped.append(SkippedCandidate(symbol=c.symbol, rank=c.rank, sector=c.sector,
                                             sleeve=sleeve, reason=SLOTS_FULL))
             continue
-        if sector_counts[c.sector] + 1 > max_per_sector:
+        sector = canonical_sector(c.sector)
+        if sector_counts[sector] + 1 > max_per_sector:
             skipped.append(SkippedCandidate(symbol=c.symbol, rank=c.rank, sector=c.sector,
                                             sleeve=sleeve, reason=SECTOR_CAP))
             continue
@@ -89,7 +94,7 @@ def apply_caps(
             continue
 
         buys.append(SelectedBuy(symbol=c.symbol, rank=c.rank, sector=c.sector, sleeve=sleeve))
-        sector_counts[c.sector] += 1
+        sector_counts[sector] += 1
         if sleeve == MICROCAP_SLEEVE:
             microcap_count += 1
 

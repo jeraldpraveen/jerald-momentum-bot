@@ -19,6 +19,7 @@ asserts this by appending future bars and checking past values are unchanged.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import logging
 from dataclasses import dataclass, field
 
@@ -51,10 +52,22 @@ class Panel:
     sector: list[str]
     sleeve: list[str]
     meta: dict = field(default_factory=dict)
+    # Calendar days between each week end and the last bar on or before it.
+    # None on a panel built by hand without it: staleness is then not judged.
+    price_age_days: np.ndarray | None = None
 
     @property
     def shape(self) -> tuple[int, int]:
         return len(self.weeks), len(self.symbols)
+
+    def stale(self, max_price_age_days: int | None = None) -> np.ndarray:
+        """Where the latest price is too old to trade on (the scanner's rule)."""
+        if self.price_age_days is None:
+            return np.zeros(self.shape, dtype=bool)
+        limit = (app_config.MAX_PRICE_AGE_DAYS if max_price_age_days is None
+                 else max_price_age_days)
+        with np.errstate(invalid="ignore"):
+            return self.price_age_days > limit
 
     def eligible(self,
                  liquidity_floor_cr: float | None = None,
@@ -68,6 +81,7 @@ class Panel:
             np.isfinite(self.close)
             & np.isfinite(self.median_tv_cr) & (self.median_tv_cr >= floor)
             & (self.listed_days >= min_days)
+            & ~self.stale()
         )
 
 
@@ -111,6 +125,9 @@ def _stock_terms(daily: pd.DataFrame, week_ends: list[dt.date],
         / app_config.RUPEES_PER_CRORE
     # How many bars exist up to each point — the listing-age gate.
     out["__listed"] = pd.Series(np.arange(1, len(close) + 1), index=close.index)
+    # The date of each bar, so the week grid can tell how old its price is.
+    out["__bar_day"] = pd.Series([d.toordinal() for d in close.index.date],
+                                 index=close.index, dtype=float)
 
     sampled: dict[str, np.ndarray] = {}
     for name, series in out.items():
@@ -170,6 +187,8 @@ def build(universe_id: str,
     dma50, dma20, rsi = blank(), blank(), blank()
     nxt_open, wk_low = blank(), blank()
     listed = np.zeros((n_w, n_s))
+    age = blank()
+    week_days = np.array([w.toordinal() for w in weeks], dtype=float)
 
     for j, m in enumerate(members):
         if progress and j % 25 == 0:
@@ -182,6 +201,7 @@ def build(universe_id: str,
         close[:, j] = got["__close"]
         tv[:, j] = got["__tv"]
         listed[:, j] = np.nan_to_num(got["__listed"])
+        age[:, j] = week_days - got["__bar_day"]
         dma50[:, j], dma20[:, j], rsi[:, j] = got["__dma50"], got["__dma20"], got["__rsi"]
         nxt_open[:, j], wk_low[:, j] = got["__next_open"], got["__week_low"]
 
@@ -192,7 +212,9 @@ def build(universe_id: str,
         week_low=wk_low, next_open=nxt_open,
         sector=[m.sector for m in members], sleeve=[m.sleeve for m in members],
         meta={"universe_id": universe_id, "index_id": index_id,
-              "index_ticker": index_opt.ticker, "median_tv_window": tv_window},
+              "index_ticker": index_opt.ticker, "median_tv_window": tv_window,
+              "source_stamp": source_stamp(universe_id, index_id)},
+        price_age_days=age,
     )
 
 
@@ -249,8 +271,30 @@ def ranks(scores: np.ndarray, eligible: np.ndarray) -> np.ndarray:
 
 # --- caching ---------------------------------------------------------------
 # Building a 400x1044 panel takes ~28 minutes. It depends only on cached prices
-# and the universe, both of which are immutable for a given run, so it is cached
-# on disk and reused by every sweep, every fold and (later) the ML training.
+# and the universe, so it is cached on disk and reused by every sweep, every
+# fold and (later) the ML training — for as long as those inputs are unchanged.
+# `source_stamp` fingerprints them; a panel whose stamp no longer matches was
+# built from other data and is rebuilt rather than silently reused.
+
+def source_stamp(universe_id: str, index_id: str) -> str | None:
+    """A fingerprint of every file a panel is built from, or None if the
+    universe is missing. Any price refresh or universe rebuild changes it."""
+    try:
+        members = universe.load(universe_id)
+    except FileNotFoundError:
+        return None
+    index_ticker = app_config.get_index_option(index_id).ticker
+    paths = [universe._path(universe_id), price_store._path(index_ticker)]
+    paths += [price_store._path(m.ticker) for m in members]
+    digest = hashlib.sha1()
+    for p in paths:
+        if p.exists():
+            st = p.stat()
+            digest.update(f"{p.name}:{st.st_mtime_ns}:{st.st_size};".encode())
+        else:
+            digest.update(f"{p.name}:missing;".encode())
+    return digest.hexdigest()
+
 
 def _cache_path(universe_id: str, index_id: str):
     return bt_config.BACKTEST_DIR / "panels" / f"{universe_id}__{index_id}.npz"
@@ -267,6 +311,7 @@ def save(p: Panel) -> None:
         listed_days=p.listed_days, dma_50=p.dma_50, dma_20=p.dma_20,
         rsi_14=p.rsi_14, week_low=p.week_low, next_open=p.next_open,
         meta=np.array([repr(p.meta)]),
+        **({} if p.price_age_days is None else {"price_age_days": p.price_age_days}),
         **{f"term__{k}": v for k, v in p.terms.items()},
     )
 
@@ -289,6 +334,7 @@ def load_cached(universe_id: str, index_id: str) -> Panel | None:
         week_low=z["week_low"], next_open=z["next_open"],
         sector=list(z["sector"]), sleeve=list(z["sleeve"]),
         meta=_ast.literal_eval(str(z["meta"][0])),
+        price_age_days=z["price_age_days"] if "price_age_days" in z.files else None,
     )
 
 
@@ -297,8 +343,13 @@ def get(universe_id: str, index_id: str = app_config.DEFAULT_INDEX_ID,
     """Cached panel for a universe+index, building it only if needed."""
     if not refresh:
         cached = load_cached(universe_id, index_id)
-        if cached is not None:
+        stamp = source_stamp(universe_id, index_id)
+        if cached is not None and stamp is not None \
+                and cached.meta.get("source_stamp") == stamp:
             return cached
+        if cached is not None:
+            log.info("Cached panel %s__%s was built from different data; rebuilding.",
+                     universe_id, index_id)
     p = build(universe_id, index_id=index_id, progress=progress)
     save(p)
     return p

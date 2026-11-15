@@ -81,3 +81,55 @@ def test_division_by_zero_is_nan():
     # numerator forced to 0 via same-term subtraction in denominator position:
     c2 = compile_formula("6 Month Performance / (6 Month Performance - 6 Month Performance)")
     assert np.isnan(score(s, c2))
+
+
+# --- Spec v2.3: the frozen live formula --------------------------------------
+
+def test_the_frozen_formula_is_the_default_and_compiles():
+    assert sf.FROZEN_FORMULA == DEFAULT_FORMULA
+    assert compile_formula(sf.FROZEN_FORMULA).used_terms == {
+        "perf_6m", "perf_3m", "perf_1m", "vol_3m", "vol_1m"}
+
+
+@pytest.mark.parametrize("text", [
+    "", "  \n ",                                            # blank = use the default
+    DEFAULT_FORMULA,
+    DEFAULT_FORMULA.upper(),                                # case does not matter
+    DEFAULT_FORMULA.replace(" ", "  "),                     # nor spacing
+    DEFAULT_FORMULA.replace("*", "x").replace("/", "÷"),    # nor operator aliases
+])
+def test_respellings_of_the_frozen_formula_still_match(text):
+    assert sf.is_frozen(text) is True
+
+
+@pytest.mark.parametrize("text", [
+    DEFAULT_FORMULA.replace("60%", "61%"),                  # a weight
+    DEFAULT_FORMULA.replace("6 Month Performance", "9 Month Performance"),   # a term
+    DEFAULT_FORMULA.replace(" / (3 Month Volatility + 1 Month Volatility)", ""),  # structure
+    "6 Month Performance",
+    "not a formula at all",
+])
+def test_any_real_change_is_not_the_frozen_formula(text):
+    assert sf.is_frozen(text) is False
+
+
+def test_non_numeric_constants_are_rejected():
+    with pytest.raises(FormulaError, match="Only numbers"):
+        compile_formula("'abc' * 6 Month Performance")
+
+
+def test_unknown_names_are_rejected():
+    with pytest.raises(FormulaError, match="Unknown term: 'foo'"):
+        compile_formula("foo * 6 Month Performance")
+
+
+def test_a_formula_with_no_terms_is_rejected():
+    with pytest.raises(FormulaError, match="at least one"):
+        compile_formula("1 + 2")
+
+
+def test_unary_operators_evaluate():
+    s = series(np.linspace(100, 200, 300))
+    plain = score(s, compile_formula("6 Month Performance"))
+    assert score(s, compile_formula("-6 Month Performance")) == pytest.approx(-plain)
+    assert score(s, compile_formula("+6 Month Performance")) == pytest.approx(plain)

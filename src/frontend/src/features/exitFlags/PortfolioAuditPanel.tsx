@@ -11,6 +11,9 @@ interface Props {
 const REASON_LABEL: Record<string, string> = {
   rank_exit: "rank fell past threshold",
   dropped_from_universe: "no longer in universe",
+  // Kept WITHOUT being ranked — a data gap or a buy-side screen is not a sell signal.
+  price_data_unavailable: "not audited — no current price",
+  excluded_by_scan_filter: "not audited — outside the scan's filter",
 };
 
 // Part C — Portfolio Audit. Cross-references ACTIVE holdings against the Jerald

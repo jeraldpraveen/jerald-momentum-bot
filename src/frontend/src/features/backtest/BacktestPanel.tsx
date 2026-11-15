@@ -3,6 +3,7 @@ import { api, ApiRequestError } from "../../api/client";
 import type {
   AltAssetOption,
   BacktestRunRequest,
+  BenchmarkOption,
   IndexCoverage,
   RegimeOptions,
   RunRecord,
@@ -11,6 +12,7 @@ import type {
   UniverseSummary,
 } from "../../api/types";
 import { MultiSelect } from "../../components/MultiSelect";
+import { FairComparisonFields } from "./FairComparisonFields";
 import { RunResult } from "./RunResult";
 import { SweepPanel } from "./SweepPanel";
 
@@ -24,6 +26,10 @@ const DEFAULTS: Omit<BacktestRunRequest, "universe_id"> = {
   stop_multiplier: 0.8,
   cost_bps: 30,
   slippage_bps: 25,
+  // Spec v2.3: idle cash is parked in a liquid fund, and results are after tax.
+  cash_yield_pct: 6.5,
+  apply_tax: true,
+  benchmark_id: null,
   fetch_prices: true,
 };
 
@@ -42,6 +48,7 @@ export function BacktestPanel() {
   const [options, setOptions] = useState<RegimeOptions | null>(null);
   const [altAssets, setAltAssets] = useState<AltAssetOption[]>([]);
   const [coverage, setCoverage] = useState<IndexCoverage[]>([]);
+  const [benchmarks, setBenchmarks] = useState<BenchmarkOption[]>([]);
 
   // Universe builder
   const [indexOptions, setIndexOptions] = useState<UniverseOption[]>([]);
@@ -67,6 +74,7 @@ export function BacktestPanel() {
     api.getRegimeOptions().then(setOptions).catch(() => setOptions(null));
     api.listAltAssets().then(setAltAssets).catch(() => setAltAssets([]));
     api.getIndexCoverage().then(setCoverage).catch(() => setCoverage([]));
+    api.listBenchmarks().then(setBenchmarks).catch(() => setBenchmarks([]));
     api.getUniverseOptions()
       .then((o) => setIndexOptions(o.filter((x) => x.id !== "holdings")))
       .catch(() => setIndexOptions([]));
@@ -295,8 +303,18 @@ export function BacktestPanel() {
         </label>
       </div>
 
-      {/* RED weeks sit in cash under the Rulebook. This tests parking that
-          capital instead — a research question, not a change to the ritual. */}
+      {/* What the run is measured against, and whether tax is settled. */}
+      <FairComparisonFields
+        benchmarks={benchmarks}
+        benchmarkId={form.benchmark_id ?? null}
+        applyTax={form.apply_tax ?? true}
+        onBenchmark={(id) => set("benchmark_id", id)}
+        onApplyTax={(v) => set("apply_tax", v)}
+      />
+
+      {/* RED-week cash is parked in a liquid fund under the Rulebook (v2.3).
+          This tests another asset instead — research only; gold was tested
+          and NOT adopted. */}
       <div className="alt-asset">
         <label className="toggle-row">
           <input type="checkbox" className="switch"
@@ -344,17 +362,17 @@ export function BacktestPanel() {
         )}
       </div>
 
-      {/* Fixed return on idle RED-week cash. The honest way to model a bond or
-          liquid fund: no ETF, no dividend-capture problem, full 20-year window. */}
+      {/* Fixed return on idle cash — the liquid-fund parking of Spec v2.3.
+          No ETF, no dividend-capture problem, full 20-year window. */}
       <div className="scan-filters">
         <label>
           <span>Fixed yield on idle cash (%/yr)</span>
           <input type="number" min={0} max={20} step={0.5}
-                 value={form.cash_yield_pct ?? 0}
+                 value={form.cash_yield_pct ?? 6.5}
                  onChange={(e) => set("cash_yield_pct", Math.min(20, Math.max(0, Number(e.target.value))))} />
           <span className="field-hint">
-            models a bond / liquid fund cleanly; 0 = idle cash (the live rule).
-            6–7% ≈ an overnight/liquid fund
+            6.5% = the live rule since Spec v2.3 (idle cash parked in a liquid or
+            overnight fund); 0 = truly idle cash
           </span>
         </label>
       </div>

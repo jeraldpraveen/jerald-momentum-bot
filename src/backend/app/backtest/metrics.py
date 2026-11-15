@@ -47,6 +47,14 @@ def _drawdown(equity: pd.Series) -> tuple[float, int]:
     return round(worst, 2), longest
 
 
+def cagr_pct(start: float, end: float, periods: int) -> float:
+    """Annualised growth from `start` to `end` over `periods` weekly steps."""
+    years = periods / WEEKS_PER_YEAR
+    if start <= 0 or years <= 0 or end <= 0:
+        return 0.0
+    return ((end / start) ** (1 / years) - 1) * 100
+
+
 def compute(equity: pd.Series, exposure: list[bool] | None = None,
             risk_free_pct: float = 0.0) -> Metrics:
     """Metrics for a weekly equity series indexed by week-end date."""
@@ -57,10 +65,9 @@ def compute(equity: pd.Series, exposure: list[bool] | None = None,
 
     rets = equity.pct_change().dropna()
     start, end = float(equity.iloc[0]), float(equity.iloc[-1])
-    years = len(rets) / WEEKS_PER_YEAR
 
     total_return = (end / start - 1) * 100 if start else 0.0
-    cagr = ((end / start) ** (1 / years) - 1) * 100 if start > 0 and years > 0 else 0.0
+    cagr = cagr_pct(start, end, len(rets))
 
     vol_weekly = float(rets.std(ddof=1)) if len(rets) > 1 else 0.0
     vol_annual = vol_weekly * math.sqrt(WEEKS_PER_YEAR) * 100

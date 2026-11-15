@@ -1,0 +1,279 @@
+{
+  "run_id": "20261115-095944",
+  "label": "midsmall400+microcap250-15/11/26-bps-100",
+  "status": "done",
+  "created_at": "2026-11-15T09:59:44.077391",
+  "updated_at": "2026-11-15T10:19:36.590339",
+  "request": {
+    "universe_id": "midsmall400+microcap250",
+    "label": "midsmall400+microcap250-15/11/26-bps-100",
+    "index_id": "nifty500",
+    "filter_id": "st_1_2_5",
+    "formula": "((60% * 6 Month Performance) + (30% * 3 Month Performance) + (10% * 1 Month Performance)) / (3 Month Volatility + 1 Month Volatility)",
+    "start": "2006-07-28",
+    "end": "2026-07-17",
+    "starting_capital": 1000000.0,
+    "position_weight_pct": 10.0,
+    "stop_multiplier": 0.8,
+    "cost_bps": 100.0,
+    "slippage_bps": 100.0,
+    "rank_exit_threshold": null,
+    "veto_rank_window": null,
+    "alt_asset_id": null,
+    "alt_allocation_pct": 100.0,
+    "cash_yield_pct": 6.5,
+    "benchmark_id": "midsmall400_tri",
+    "apply_tax": true,
+    "fetch_prices": true
+  },
+  "progress": {
+    "done": 1,
+    "total": 1,
+    "pct": 100.0,
+    "detail": "complete"
+  },
+  "summary": {
+    "metrics": {
+      "start_equity": 1000000.0,
+      "end_equity": 9406580.11,
+      "total_return_pct": 840.66,
+      "cagr_pct": 11.84,
+      "volatility_pct": 20.93,
+      "sharpe": 0.64,
+      "sortino": 0.718,
+      "max_drawdown_pct": -45.94,
+      "max_drawdown_weeks": 231,
+      "weeks": 1043,
+      "exposure_pct": 57.72,
+      "win_rate_pct": 72.74,
+      "win_rate_invested_pct": 56.98
+    },
+    "benchmark": {
+      "start_equity": 1000000.0,
+      "end_equity": 18934330.47,
+      "total_return_pct": 1793.43,
+      "cagr_pct": 15.81,
+      "volatility_pct": 22.57,
+      "sharpe": 0.764,
+      "sortino": 1.023,
+      "max_drawdown_pct": -73.28,
+      "max_drawdown_weeks": 332,
+      "weeks": 1043,
+      "exposure_pct": 0.0,
+      "win_rate_pct": 58.06,
+      "win_rate_invested_pct": 0.0
+    },
+    "tax": {
+      "enabled": true,
+      "rules": {
+        "stcg_pct": 20.0,
+        "ltcg_pct": 12.5,
+        "ltcg_exemption": 125000.0,
+        "long_term_days": 365,
+        "carry_forward_years": 8,
+        "cash_income_pct": 30.0
+      },
+      "total_tax_paid": 2495411.02,
+      "capital_gains_tax": 1983090.92,
+      "cash_income_tax": 512320.1,
+      "losses_carried_forward": 2659195.87,
+      "by_year": [
+        {
+          "fy": "2006-07",
+          "short_term_gain": 22971.62,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 4594.32,
+          "cash_income_tax": 3990.96
+        },
+        {
+          "fy": "2007-08",
+          "short_term_gain": -5613.1,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 7947.57
+        },
+        {
+          "fy": "2008-09",
+          "short_term_gain": -295726.7,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 11598.52
+        },
+        {
+          "fy": "2009-10",
+          "short_term_gain": 661656.02,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 72063.24,
+          "cash_income_tax": 9417.13
+        },
+        {
+          "fy": "2010-11",
+          "short_term_gain": 7826.09,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 1565.22,
+          "cash_income_tax": 16972.34
+        },
+        {
+          "fy": "2011-12",
+          "short_term_gain": -97874.0,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 19691.89
+        },
+        {
+          "fy": "2012-13",
+          "short_term_gain": 23223.09,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 7312.88
+        },
+        {
+          "fy": "2013-14",
+          "short_term_gain": 169770.58,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 19023.93,
+          "cash_income_tax": 14204.09
+        },
+        {
+          "fy": "2014-15",
+          "short_term_gain": 599928.1,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 119985.62,
+          "cash_income_tax": 4235.28
+        },
+        {
+          "fy": "2015-16",
+          "short_term_gain": -235922.59,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 33661.77
+        },
+        {
+          "fy": "2016-17",
+          "short_term_gain": 61429.37,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 13089.34
+        },
+        {
+          "fy": "2017-18",
+          "short_term_gain": 1081254.98,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 181352.35,
+          "cash_income_tax": 14076.21
+        },
+        {
+          "fy": "2018-19",
+          "short_term_gain": -322442.95,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 44084.41
+        },
+        {
+          "fy": "2019-20",
+          "short_term_gain": -421229.48,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 18102.95
+        },
+        {
+          "fy": "2020-21",
+          "short_term_gain": 2046045.3,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 260474.57,
+          "cash_income_tax": 18470.29
+        },
+        {
+          "fy": "2021-22",
+          "short_term_gain": 470748.49,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 94149.7,
+          "cash_income_tax": 43279.49
+        },
+        {
+          "fy": "2022-23",
+          "short_term_gain": -33323.01,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 55545.74
+        },
+        {
+          "fy": "2023-24",
+          "short_term_gain": 2112439.05,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 415823.21,
+          "cash_income_tax": 14012.56
+        },
+        {
+          "fy": "2024-25",
+          "short_term_gain": 4070293.73,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 814058.75,
+          "cash_income_tax": 85633.94
+        },
+        {
+          "fy": "2025-26",
+          "short_term_gain": -2364819.42,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 65662.5
+        },
+        {
+          "fy": "2026-27",
+          "short_term_gain": -294376.46,
+          "long_term_gain": 0.0,
+          "capital_gains_tax": 0.0,
+          "cash_income_tax": 11330.24
+        }
+      ],
+      "strategy": {
+        "exit_tax": 0.0,
+        "end_equity_after_exit": 9406580.11,
+        "cagr_after_exit_pct": 11.84
+      },
+      "benchmark": {
+        "exit_tax": 2226166.31,
+        "end_equity_after_exit": 16708164.16,
+        "cagr_after_exit_pct": 15.09
+      }
+    },
+    "trade_stats": {
+      "closed_trades": 564,
+      "win_rate_pct": 40.43,
+      "avg_pnl": 12865.71,
+      "best_pnl": 1158532.21,
+      "worst_pnl": -298034.28
+    },
+    "turnover": 6.18,
+    "config": {
+      "universe_id": "midsmall400+microcap250",
+      "universe_size": 651,
+      "index_id": "nifty500",
+      "index_label": "NIFTY 500",
+      "index_ticker": "^CRSLDX",
+      "filter_id": "st_1_2_5",
+      "filter_label": "Supertrend (1, 2.5)",
+      "formula": "((60% * 6 Month Performance) + (30% * 3 Month Performance) + (10% * 1 Month Performance)) / (3 Month Volatility + 1 Month Volatility)",
+      "start": "2006-07-28",
+      "end": "2026-07-17",
+      "requested_start": "2006-07-28",
+      "start_clipped": false,
+      "starting_capital": 1000000.0,
+      "position_weight_pct": 10.0,
+      "stop_multiplier": 0.8,
+      "cost_bps": 100.0,
+      "slippage_bps": 100.0,
+      "alt_asset_id": null,
+      "alt_asset_label": "",
+      "alt_allocation_pct": 0.0,
+      "cash_yield_pct": 6.5,
+      "benchmark_id": "midsmall400_tri",
+      "benchmark_label": "NIFTY MIDSMALLCAP 400 TRI",
+      "benchmark_total_return": true,
+      "benchmark_start": "2006-07-28",
+      "benchmark_end": "2026-07-17",
+      "apply_tax": true
+    }
+  },
+  "error": ""
+}

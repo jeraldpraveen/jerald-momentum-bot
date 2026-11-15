@@ -7,6 +7,10 @@ first success wins:
 
 Weekly bars are labelled by their FRIDAY (week end) date, and any still-open
 week is dropped so the gate only ever sees a true Friday close.
+
+A provider whose candles stop before the latest closed week is SKIPPED. The
+manual override used to be trusted unconditionally, so a hand-exported file
+that was no longer being updated kept feeding the regime gate months-old data.
 """
 
 from __future__ import annotations
@@ -43,6 +47,16 @@ def _drop_incomplete_week(weekly: pd.DataFrame, now_ist: dt.datetime) -> pd.Data
         log.warning("Dropping incomplete week ending %s (market not closed yet)", week_end.date())
         return weekly.iloc[:-1]
     return weekly
+
+
+def _latest_closed_week(now_ist: dt.datetime) -> dt.date:
+    """The Friday whose 15:30 close has most recently passed."""
+    today = now_ist.date()
+    friday = today - dt.timedelta(days=(today.weekday() - 4) % 7)
+    close_ts = dt.datetime(friday.year, friday.month, friday.day,
+                           config.MARKET_CLOSE_HOUR, config.MARKET_CLOSE_MINUTE,
+                           tzinfo=config.IST)
+    return friday if now_ist >= close_ts else friday - dt.timedelta(days=7)
 
 
 def _resample_daily_to_weekly(daily: pd.DataFrame) -> pd.DataFrame:
@@ -87,6 +101,8 @@ def fetch_weekly_index_data(ticker: str, now_ist: dt.datetime | None = None) -> 
         (f"manual:{ticker}", lambda: _from_manual_csv(ticker)),
         (f"yfinance:{ticker}", lambda: _from_yfinance(ticker)),
     ]
+    expected = _latest_closed_week(now_ist)
+    stale: list[str] = []
     for source, fn in providers:
         weekly = fn()
         if weekly is None or weekly.empty:
@@ -95,9 +111,20 @@ def fetch_weekly_index_data(ticker: str, now_ist: dt.datetime | None = None) -> 
         if len(weekly) < config.MIN_WEEKLY_BARS:
             log.warning("%s returned only %d weekly bars (< %d)", source, len(weekly), config.MIN_WEEKLY_BARS)
             continue
+        last = weekly.index[-1].date()
+        if last < expected:
+            log.warning("%s stops at the week ending %s, before the latest closed week %s — "
+                        "skipped", source, last, expected)
+            stale.append(f"{source} (stops {last.isoformat()})")
+            continue
         log.info("Index data from %s: %d weekly bars, last week end %s",
                  source, len(weekly), weekly.index[-1].date())
         return WeeklyIndexData(weekly=weekly, source=source)
+    if stale:
+        raise RuntimeError(
+            f"No CURRENT weekly data for {ticker}: the latest closed week ends "
+            f"{expected.isoformat()}, but {'; '.join(stale)}. Update or remove "
+            f"data/index_manual/{ticker}.csv and retry.")
     raise RuntimeError(
         f"No weekly data for {ticker}. Provide data/index_manual/{ticker}.csv "
         "(columns: date,open,high,low,close) and retry."

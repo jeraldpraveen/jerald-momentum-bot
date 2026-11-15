@@ -7,6 +7,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from .. import config
+
 
 class ScannerFilters(BaseModel):
     sectors: list[str] = Field(default_factory=list)   # empty = all sectors
@@ -30,8 +32,12 @@ class ScannerCandidate(BaseModel):
 
 class PartBRunRequest(BaseModel):
     # One or more universes; their constituents are unioned (deduped by symbol).
-    universe_ids: list[str] = Field(default_factory=lambda: ["holdings"])
-    formula: str = ""                     # empty => the default Jerald formula
+    # Defaults to the two Rulebook indices, never to the holdings alone.
+    universe_ids: list[str] = Field(
+        default_factory=lambda: list(config.DEFAULT_UNIVERSE_IDS))
+    # Frozen since Spec v2.3: leave blank (or send the frozen formula). Any
+    # other formula is refused with 409 formula_frozen.
+    formula: str = ""
     filters: ScannerFilters = ScannerFilters()
 
 
@@ -43,6 +49,17 @@ class FormulaValidateResponse(BaseModel):
     ok: bool
     error: Optional[str] = None
     terms: list[str] = []                 # term tokens the formula references
+    # Whether this is the frozen live formula. A valid formula that is not the
+    # frozen one is fine for research but will be refused by the Friday ritual.
+    frozen: bool = False
+
+
+class FrozenFormulaOut(BaseModel):
+    """The one formula the live ritual scores with (Spec v2.3)."""
+
+    formula: str
+    since: str = "Spec v2.3"
+    reason: str = ""
 
 
 class ScannerOutput(BaseModel):

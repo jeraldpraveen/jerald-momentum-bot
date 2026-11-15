@@ -141,6 +141,9 @@ def commit(cycle: Cycle) -> None:
     out = cycle.steps.part_e_journal.output
     if out is None:
         raise StepNotReady("Compile the journal before advancing.")
+    # One row per cycle. Reopening the journal to correct it and advancing again
+    # must REPLACE the week's row, not add a second one beside it.
+    journal_repository.delete_entries(cycle.cycle_id)
     journal_repository.append(out.entry)
     out.committed = True
     log.info("Journal entry appended for cycle %s", cycle.cycle_id)

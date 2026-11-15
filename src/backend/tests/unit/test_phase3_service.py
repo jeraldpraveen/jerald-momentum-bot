@@ -1,4 +1,4 @@
-"""Step-8 Monday execution plan tests (Spec v2.2 §3.1-3.4)."""
+"""Step-8 Monday execution plan tests (Spec v2.3 §3.1-3.5)."""
 
 import numpy as np
 import pytest
@@ -154,7 +154,14 @@ def test_red_week_plan_is_exits_only(isolated, journal_paths, monkeypatch, now_i
     assert out.regime == "RED"
     assert len(out.exits) == len(HOLDINGS)             # everything liquidated
     assert out.buys == []
-    assert any("stays in cash" in c for c in out.checklist)
+    # v2.3: RED proceeds are parked, never left idle.
+    assert out.park_amount == pytest.approx(len(HOLDINGS) * 50 * 100.0)
+    assert out.redeem_amount is None
+    assert out.parking_instrument == config.PARKING_INSTRUMENT
+    text = "\n".join(out.checklist)
+    assert "PARK the proceeds (~Rs 25,000)" in text and "liquid or overnight fund" in text
+    assert text.index("LIQUIDATIONS FIRST") < text.index("PARK the proceeds")
+    assert "slot short" not in text and "stays in cash" not in text
 
     done = cycle_service.complete_cycle(now=now_ist)
     assert done.outcome == "red_terminated"           # not overwritten
@@ -220,8 +227,138 @@ def test_overweight_holdings_are_flagged(at_step8, monkeypatch, now_ist):
 
 
 def test_leftover_cash_is_reported_not_forced(at_step8, now_ist):
-    """A slot-short remainder stays in cash rather than becoming an undersized buy."""
+    """A slot-short remainder is parked rather than becoming an undersized buy."""
     out = _out(now_ist, portfolio_capital=1_000_000, available_cash=150_000)
     # 1 position funded (1 lakh), 50k left over — a slot short of the next.
     assert out.leftover_cash and out.leftover_cash > 0
-    assert any("stays in cash" in c for c in out.checklist)
+    assert out.park_amount == out.leftover_cash == pytest.approx(50_000)
+    assert any("slot short" in c and "liquid or overnight fund" in c for c in out.checklist)
+
+
+# --- Spec v2.3: parking undeployed cash in a liquid fund ---------------------
+
+def _red_cycle(monkeypatch, now_ist, holdings=HOLDINGS, qty=50):
+    """Drive a RED week to the Monday plan."""
+    _seed_holdings(holdings)
+    if holdings:
+        _edit(qty=qty)
+    monkeypatch.setattr(regime_gate_service, "fetch_weekly_index_data", lambda *a, **k: red_data())
+    cycle_service.create_cycle(now=now_ist)
+    regime_gate_service.run(now_ist=now_ist)
+    cycle_service.advance_part_a(now=now_ist)
+    journal_service.run(JournalRunRequest(stops_verified=True), now_ist=now_ist)
+    cycle_service.advance_part_e_journal(now=now_ist)
+    monkeypatch.setattr(phase3_service.stock_prices, "get_prices",
+                        lambda tickers, as_of=None, today=None: {t: _flat(100.0) for t in tickers})
+
+
+def test_red_week_with_nothing_to_sell_keeps_cash_parked(isolated, journal_paths,  # noqa: F811
+                                                         monkeypatch, now_ist):
+    _red_cycle(monkeypatch, now_ist, holdings=[])
+    out = _out(now_ist)
+
+    assert out.exits == [] and out.park_amount is None
+    text = "\n".join(out.checklist)
+    assert "No exits this week" in text
+    assert "No buys on a RED week — your cash stays parked in your liquid or overnight fund" in text
+
+
+def test_green_buys_beyond_the_exit_proceeds_are_redeemed_first(at_step8, now_ist):
+    """Nothing is being sold, so every rupee of the buys has to come back out
+    of the liquid fund — and that instruction must be the FIRST line."""
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=250_000)
+
+    assert out.est_proceeds is None
+    assert out.redeem_amount == pytest.approx(out.est_deployment) == pytest.approx(200_000)
+    assert out.checklist[0].startswith("BEFORE THE OPEN — have Rs 200,000 back")
+    assert "liquid or overnight fund" in out.checklist[0]
+
+
+def test_exit_proceeds_reduce_what_must_be_redeemed(at_step8, now_ist):
+    _edit(0, status="PENDING_EXIT", exit_reason="rank_exit", qty=1500)   # frees 150,000
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=250_000)
+
+    assert out.est_proceeds == pytest.approx(150_000)
+    assert out.redeem_amount == pytest.approx(out.est_deployment - 150_000)
+    assert out.checklist[0].startswith("BEFORE THE OPEN")
+
+
+def test_no_redemption_when_the_exits_cover_the_buys(at_step8, now_ist):
+    _edit(0, status="PENDING_EXIT", exit_reason="rank_exit", qty=5000)   # frees 500,000
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=250_000)
+
+    assert out.redeem_amount is None
+    assert not any("BEFORE THE OPEN" in c for c in out.checklist)
+    assert out.checklist[0].startswith("09:15 — LIQUIDATIONS FIRST")
+
+
+def test_no_redemption_when_nothing_is_funded(at_step8, now_ist):
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=40_000)
+
+    assert out.funded_count == 0 and out.redeem_amount is None
+    text = "\n".join(out.checklist)
+    assert "No buys fit your available cash" in text
+    assert "slot short" in text                      # the 40,000 is still parked
+    assert out.park_amount == pytest.approx(40_000)
+
+
+def _clear_buys(now_ist):
+    """Empty the buy list on the committed risk-caps step: a GREEN week in which
+    no candidate survived the veto ladder."""
+    from app.repositories import cycles_repository as repo
+    cyc = cycle_service.get_current_cycle()
+    cyc.steps.part_d_risk_caps.output.buys = []
+    repo.save(cyc)
+
+
+def test_green_week_with_no_candidates_parks_free_cash(at_step8, now_ist):
+    _clear_buys(now_ist)
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=300_000)
+
+    assert out.buys == [] and out.park_amount == pytest.approx(300_000)
+    text = "\n".join(out.checklist)
+    assert "No buys this week — park the Rs 300,000 you have free" in text
+    assert "slot short" not in text                  # nothing was a slot short
+
+
+def test_green_week_with_no_candidates_and_no_free_cash(at_step8, now_ist):
+    _clear_buys(now_ist)
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=0)
+
+    assert out.park_amount is None
+    assert any("No buys this week — your cash stays parked" in c for c in out.checklist)
+
+
+def test_plan_states_the_earliest_promotion_date(at_step8, now_ist):
+    out = _out(now_ist, portfolio_capital=1_000_000)
+    assert any("not before 29 Jan 2027" in a for a in out.actions)
+
+
+# --- paths the original suite never reached ----------------------------------
+
+def test_a_share_dearer_than_the_position_size_is_deferred(at_step8, monkeypatch, now_ist):
+    monkeypatch.setattr(phase3_service.stock_prices, "get_prices",
+                        lambda tickers, as_of=None, today=None: {t: _flat(200_000.0)
+                                                                 for t in tickers})
+    out = _out(now_ist, portfolio_capital=1_000_000, available_cash=1_000_000)
+
+    assert out.funded_count == 0
+    assert all(b.defer_reason == "one share exceeds the target size" for b in out.buys)
+
+
+def test_a_plan_failure_lands_on_the_step(at_step8, monkeypatch, now_ist):
+    def boom(cycle, body):
+        raise RuntimeError("ledger unreadable")
+
+    monkeypatch.setattr(phase3_service, "_build", boom)
+    step = phase3_service.run(Phase3RunRequest(), now_ist=now_ist).steps.phase3_plan
+
+    assert step.status == StepStatus.FAILED and step.output is None
+    assert step.error == "RuntimeError: ledger unreadable"
+
+
+def test_the_plan_needs_a_regime_decision(at_step8):
+    cyc = cycle_service.get_current_cycle()
+    cyc.steps.part_a_regime_gate.output = None
+    with pytest.raises(StepNotReady, match="regime gate"):
+        phase3_service._build(cyc, Phase3RunRequest())

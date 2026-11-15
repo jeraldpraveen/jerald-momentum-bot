@@ -44,6 +44,13 @@ class StepNotReady(DomainError):
     http_status = 409
 
 
+class FormulaFrozen(DomainError):
+    """The live ritual was asked to score with a formula other than the frozen one."""
+
+    code = "formula_frozen"
+    http_status = 409
+
+
 class CycleNotFound(DomainError):
     code = "cycle_not_found"
     http_status = 404

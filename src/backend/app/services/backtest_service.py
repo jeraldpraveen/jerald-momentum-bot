@@ -14,11 +14,13 @@ import datetime as dt
 import logging
 import threading
 
+from ..backtest import benchmarks
 from ..backtest import config as bt_config
 from ..backtest import engine, price_store, runs, universe
 from ..schemas.backtest import (
     BacktestResult,
     BacktestRunRequest,
+    BenchmarkOptionOut,
     BuildUniverseRequest,
     IndexCoverage,
     RunProgress,
@@ -49,6 +51,30 @@ def index_coverage() -> list[IndexCoverage]:
             first_session=span[0].isoformat() if span else None,
             last_session=span[1].isoformat() if span else None,
             first_tradable=first_tradable, cached=span is not None,
+        ))
+    return out
+
+
+def list_benchmarks() -> list[BenchmarkOptionOut]:
+    """Every benchmark a run can be measured against, with what is on disk.
+
+    A total-return file that has not been downloaded yet is listed as
+    unavailable WITH the instructions to get it, so the fair comparison is one
+    download away rather than something the user has to know to ask for.
+    """
+    out: list[BenchmarkOptionOut] = []
+    for o in benchmarks.options():
+        span = benchmarks.coverage(o)
+        how_to = ""
+        if span is None and o.source == "manual":
+            how_to = (f"Download from {benchmarks.MANUAL_SOURCE_HINT}; save it as "
+                      f"{benchmarks.benchmarks_dir() / o.ref}.")
+        out.append(BenchmarkOptionOut(
+            id=o.id, label=o.label, source=o.source, total_return=o.total_return,
+            note=o.note, available=span is not None,
+            first_session=span[0] if span else None,
+            last_session=span[1] if span else None,
+            how_to=how_to,
         ))
     return out
 
@@ -184,7 +210,9 @@ def _execute(run_id: str, body: BacktestRunRequest, cancel: threading.Event) -> 
                                             detail=f"fetched {done}/{total} tickers"))
 
             alt = app_config_alt(body.alt_asset_id)
-            price_store.ensure([index_ticker] + tickers + ([alt] if alt else []),
+            bench = _benchmark_ticker(body.benchmark_id)
+            extras = [t for t in (alt, bench) if t and t != index_ticker]
+            price_store.ensure([index_ticker] + tickers + extras,
                                batch=25, progress=fetched)
             price_store.clear_memo()          # pick up whatever just landed
             if cancel.is_set():
@@ -213,6 +241,8 @@ def _execute(run_id: str, body: BacktestRunRequest, cancel: threading.Event) -> 
             alt_asset_id=body.alt_asset_id,
             alt_allocation_pct=body.alt_allocation_pct,
             cash_yield_pct=body.cash_yield_pct,
+            benchmark_id=body.benchmark_id,
+            apply_tax=body.apply_tax,
             progress=progress,
         )
 
@@ -221,6 +251,7 @@ def _execute(run_id: str, body: BacktestRunRequest, cancel: threading.Event) -> 
                progress=RunProgress(done=1, total=1, pct=100.0, detail="complete"),
                summary={"metrics": result_dict["metrics"],
                         "benchmark": result_dict["benchmark"],
+                        "tax": result_dict["tax"],
                         "trade_stats": result_dict["trade_stats"],
                         "turnover": result_dict["turnover"],
                         "config": result_dict["config"]})
@@ -238,6 +269,18 @@ def _execute(run_id: str, body: BacktestRunRequest, cancel: threading.Event) -> 
 def _index_ticker(index_id: str) -> str:
     from .. import config as app_config
     return app_config.get_index_option(index_id).ticker
+
+
+def _benchmark_ticker(benchmark_id: str | None) -> str | None:
+    """The price-store ticker a benchmark needs fetched, if it has one.
+
+    A manual (downloaded-file) benchmark needs nothing fetched, and an unknown
+    id is left for the engine to reject with its own clear message.
+    """
+    for o in benchmarks.options():
+        if o.id == benchmark_id:
+            return o.ref if o.source == "index" else None
+    return None
 
 
 def app_config_alt(alt_id: str | None) -> str | None:

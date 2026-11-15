@@ -10,7 +10,8 @@ from app import config
 from app.schemas.common import StepStatus
 from app.schemas.scanner import PartBRunRequest, ScannerFilters
 from app.services import cycle_service, regime_gate_service, scanner_service
-from app.services.errors import StepNotReady
+from app.domain import scoring_formula
+from app.services.errors import FormulaFrozen, StepNotReady
 from tests.conftest import green_data
 
 # (symbol, sector) for the seeded holdings universe used by these tests.
@@ -30,9 +31,11 @@ def _seed_holdings(rows):
     }).to_csv(config.HOLDINGS_LEDGER, index=False)
 
 
-def _ohlcv(closes, volume=5_000_000, start="2022-01-01"):
+def _ohlcv(closes, volume=5_000_000, end=None):
+    """Daily bars ENDING today by default — the scan refuses prices more than a
+    week older than its as-of date, so test data has to be current too."""
     closes = np.asarray(closes, dtype=float)
-    idx = pd.date_range(start, periods=len(closes), freq="D")
+    idx = pd.date_range(end=end or dt.date.today(), periods=len(closes), freq="D")
     return pd.DataFrame(
         {"open": closes, "high": closes * 1.01, "low": closes * 0.99,
          "close": closes, "volume": float(volume)},
@@ -105,33 +108,62 @@ def test_sector_and_price_filters(at_part_b, monkeypatch, now_ist):
     assert out.eligible_count == 1
 
 
-def test_formula_changes_scores(at_part_b, monkeypatch, now_ist):
-    s = _ohlcv(list(np.linspace(100, 160, 300)) + list(np.linspace(160, 140, 100)))
-    _patch_prices(monkeypatch, {"SANSERA.NS": s})
-    cyc = scanner_service.run(
-        PartBRunRequest(universe_ids=["holdings"],
-                        formula="6 Month Performance / 1 Month Volatility"),
-        now_ist=now_ist,
-    )
-    a = {c.symbol: c.score for c in cyc.steps.part_b_scanner.output.candidates}["SANSERA"]
-    cyc2 = scanner_service.run(
-        PartBRunRequest(universe_ids=["holdings"],
-                        formula="1 Month Performance / 1 Month Volatility"),
-        now_ist=now_ist,
-    )
-    b = {c.symbol: c.score for c in cyc2.steps.part_b_scanner.output.candidates}["SANSERA"]
-    assert a != b
-    assert cyc.steps.part_b_scanner.output.formula == "6 Month Performance / 1 Month Volatility"
+# --- Spec v2.3: the live formula is frozen -----------------------------------
+
+@pytest.mark.parametrize("formula", [
+    "6 Month Performance / 1 Month Volatility",          # a valid alternative
+    "6 Month Momentum / 1 Month Volatility",             # not even a valid formula
+    scoring_formula.FROZEN_FORMULA.replace("60%", "70%"),   # one weight nudged
+])
+def test_a_different_formula_is_refused_before_anything_runs(at_part_b, monkeypatch,
+                                                             now_ist, formula):
+    monkeypatch.setattr(scanner_service.stock_prices, "get_prices",
+                        lambda *a, **k: pytest.fail("prices must not be fetched"))
+    with pytest.raises(FormulaFrozen) as exc:
+        scanner_service.run(PartBRunRequest(universe_ids=["holdings"], formula=formula),
+                            now_ist=now_ist)
+
+    err = exc.value
+    assert err.http_status == 409 and err.code == "formula_frozen"
+    assert err.to_dict()["frozen_formula"] == scoring_formula.FROZEN_FORMULA
+    # Refused, not failed: the step is untouched and can still be run properly.
+    step = cycle_service.get_current_cycle().steps.part_b_scanner
+    assert step.status == StepStatus.PENDING and step.output is None
 
 
-def test_bad_formula_marks_step_failed(at_part_b, monkeypatch, now_ist):
+@pytest.mark.parametrize("formula", [
+    "",                                                  # blank = the frozen default
+    "   ",
+    scoring_formula.FROZEN_FORMULA,
+    scoring_formula.FROZEN_FORMULA.lower().replace(" + ", "+").replace("*", "x"),
+])
+def test_the_frozen_formula_is_always_what_gets_scored(at_part_b, monkeypatch, now_ist,
+                                                       formula):
     _patch_prices(monkeypatch, {"TMB.NS": _ohlcv(np.linspace(100, 300, 400))})
-    cyc = scanner_service.run(
-        PartBRunRequest(universe_ids=["holdings"], formula="6 Month Momentum / 1 Month Volatility"),
-        now_ist=now_ist,
-    )
-    assert cyc.steps.part_b_scanner.status == StepStatus.FAILED
-    assert "FormulaError" in cyc.steps.part_b_scanner.error
+    cyc = scanner_service.run(PartBRunRequest(universe_ids=["holdings"], formula=formula),
+                              now_ist=now_ist)
+
+    step = cyc.steps.part_b_scanner
+    assert step.status == StepStatus.DONE
+    # The canonical text is recorded, whatever spelling was sent.
+    assert step.output.formula == scoring_formula.FROZEN_FORMULA
+    assert step.input["formula"] == scoring_formula.FROZEN_FORMULA
+
+
+def test_a_scoring_failure_lands_on_the_step(at_part_b, monkeypatch, now_ist):
+    def boom(*a, **k):
+        raise RuntimeError("price feed down")
+
+    monkeypatch.setattr(scanner_service.stock_prices, "get_prices", boom)
+    cyc = scanner_service.run(PartBRunRequest(universe_ids=["holdings"]), now_ist=now_ist)
+
+    step = cyc.steps.part_b_scanner
+    assert step.status == StepStatus.FAILED and step.output is None
+    assert step.error == "RuntimeError: price feed down"
+
+
+def test_list_sectors_is_the_sorted_union_without_blanks(at_part_b):
+    assert scanner_service.list_sectors(["holdings"]) == sorted({sec for _, sec in HOLDINGS})
 
 
 def test_multi_universe_union_dedup(at_part_b, monkeypatch, now_ist):

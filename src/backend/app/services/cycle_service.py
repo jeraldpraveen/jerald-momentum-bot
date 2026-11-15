@@ -107,15 +107,33 @@ def touch_and_save(cycle: Cycle, now: dt.datetime | None = None) -> Cycle:
     return repo.save(cycle)
 
 
+def _ready_to_advance(cycle: Cycle, step_id: StepId, not_run: str):
+    """The step being advanced must have a result AND be the current step.
+
+    The second half matters as much as the first. Advancing is the commit point
+    — it marks the ledger and writes the journal — so a repeated or stale
+    request (a double click, an old browser tab) must be refused, not allowed
+    to drag the cycle back to an earlier step with later results still in place.
+    """
+    step = getattr(cycle.steps, step_id.value)
+    if step.status != StepStatus.DONE or step.output is None:
+        raise StepNotReady(not_run)
+    if cycle.current_step != step_id.value:
+        raise StepNotReady(
+            f"{step_id.value} is not the current step — the cycle is at "
+            f"{cycle.current_step}. Reopen the step if you mean to change it.",
+            current_step=cycle.current_step)
+    return step
+
+
 def advance_part_a(now: dt.datetime | None = None) -> Cycle:
     """User confirms the Part A review; move the gate per the RED/GREEN branch."""
     now = now or _now()
     cycle = get_current_cycle()
     require_open(cycle)
 
-    part_a = cycle.steps.part_a_regime_gate
-    if part_a.status != StepStatus.DONE or part_a.output is None:
-        raise StepNotReady("Run Part A and get a result before advancing.")
+    part_a = _ready_to_advance(cycle, StepId.PART_A_REGIME_GATE,
+                               "Run Part A and get a result before advancing.")
 
     if part_a.output.regime == "RED":
         cycle.outcome = "red_terminated"
@@ -148,9 +166,8 @@ def advance_part_b(now: dt.datetime | None = None) -> Cycle:
     cycle = get_current_cycle()
     require_open(cycle)
 
-    step = cycle.steps.part_b_scanner
-    if step.status != StepStatus.DONE or step.output is None:
-        raise StepNotReady("Run the Jerald scoring and get a result before advancing.")
+    _ready_to_advance(cycle, StepId.PART_B_SCANNER,
+                      "Run the Jerald scoring and get a result before advancing.")
     cycle.current_step = StepId.PART_C_EXIT_FLAGS.value
     return touch_and_save(cycle, now)
 
@@ -161,9 +178,8 @@ def advance_part_c(now: dt.datetime | None = None) -> Cycle:
     cycle = get_current_cycle()
     require_open(cycle)
 
-    step = cycle.steps.part_c_exit_flags
-    if step.status != StepStatus.DONE or step.output is None:
-        raise StepNotReady("Run the portfolio audit and get a result before advancing.")
+    step = _ready_to_advance(cycle, StepId.PART_C_EXIT_FLAGS,
+                             "Run the portfolio audit and get a result before advancing.")
 
     flagged = [h for h in step.output.holdings if h.exit_flagged]
     if flagged:
@@ -186,9 +202,8 @@ def advance_part_d_fundamental(now: dt.datetime | None = None) -> Cycle:
     cycle = get_current_cycle()
     require_open(cycle)
 
-    step = cycle.steps.part_d_fundamental
-    if step.status != StepStatus.DONE or step.output is None:
-        raise StepNotReady("Run the fundamental veto and get a result before advancing.")
+    _ready_to_advance(cycle, StepId.PART_D_FUNDAMENTAL,
+                      "Run the fundamental veto and get a result before advancing.")
     cycle.current_step = StepId.PART_D_TECHNICAL.value
     return touch_and_save(cycle, now)
 
@@ -199,9 +214,8 @@ def advance_part_d_technical(now: dt.datetime | None = None) -> Cycle:
     cycle = get_current_cycle()
     require_open(cycle)
 
-    step = cycle.steps.part_d_technical
-    if step.status != StepStatus.DONE or step.output is None:
-        raise StepNotReady("Run the technical veto and get a result before advancing.")
+    _ready_to_advance(cycle, StepId.PART_D_TECHNICAL,
+                      "Run the technical veto and get a result before advancing.")
     cycle.current_step = StepId.PART_D_RISK_CAPS.value
     return touch_and_save(cycle, now)
 
@@ -212,9 +226,8 @@ def advance_part_d_risk_caps(now: dt.datetime | None = None) -> Cycle:
     cycle = get_current_cycle()
     require_open(cycle)
 
-    step = cycle.steps.part_d_risk_caps
-    if step.status != StepStatus.DONE or step.output is None:
-        raise StepNotReady("Run the risk caps and get a result before advancing.")
+    _ready_to_advance(cycle, StepId.PART_D_RISK_CAPS,
+                      "Run the risk caps and get a result before advancing.")
     cycle.current_step = StepId.PART_E_JOURNAL.value
     return touch_and_save(cycle, now)
 
@@ -225,9 +238,8 @@ def advance_part_e_journal(now: dt.datetime | None = None) -> Cycle:
     cycle = get_current_cycle()
     require_open(cycle)
 
-    step = cycle.steps.part_e_journal
-    if step.status != StepStatus.DONE or step.output is None:
-        raise StepNotReady("Compile the journal and get a result before advancing.")
+    _ready_to_advance(cycle, StepId.PART_E_JOURNAL,
+                      "Compile the journal and get a result before advancing.")
 
     from . import journal_service          # local import avoids a cycle
     journal_service.commit(cycle)
@@ -246,9 +258,8 @@ def complete_cycle(now: dt.datetime | None = None) -> Cycle:
     cycle = get_current_cycle()
     require_open(cycle)
 
-    step = cycle.steps.phase3_plan
-    if step.status != StepStatus.DONE or step.output is None:
-        raise StepNotReady("Build the Monday plan before completing the cycle.")
+    _ready_to_advance(cycle, StepId.PHASE3_PLAN,
+                      "Build the Monday plan before completing the cycle.")
 
     cycle.current_step = "done"
     if cycle.outcome is None:

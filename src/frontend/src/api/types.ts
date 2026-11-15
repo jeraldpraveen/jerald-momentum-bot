@@ -29,6 +29,10 @@ export interface RegimeGateOutput {
   filter_label: string;
   indicator: string;
   data_source: string;
+  // False when the gate ran on an index other than the ratified one (v2.3).
+  ratified_index?: boolean;
+  // False when the candle judged is not for the cycle's own week (stale feed).
+  week_matches_cycle?: boolean;
   previous_regime: Regime | null;
   reentry_required: boolean;
   actions: string[];
@@ -71,6 +75,14 @@ export interface FormulaValidateResponse {
   ok: boolean;
   error: string | null;
   terms: string[];
+  frozen?: boolean;
+}
+
+// The one formula the Friday ritual scores with (Spec v2.3).
+export interface FrozenFormula {
+  formula: string;
+  since: string;
+  reason: string;
 }
 
 export interface ScannerFilters {
@@ -215,6 +227,8 @@ export interface FundamentalOutput {
   candidates: FundamentalCandidate[];
   struck_count: number;
   passed_count: number;
+  // False when NSE's ASM/GSM lists could not be fetched, so check 6 did not run.
+  surveillance_checked?: boolean;
   actions: string[];
 }
 
@@ -283,6 +297,8 @@ export interface RiskCapsOutput {
   sector_counts: Record<string, number>;
   microcap_count: number;
   final_portfolio_size: number;
+  // False when the Microcap 250 list could not be loaded: the cap was NOT applied.
+  microcap_cap_enforced?: boolean;
   actions: string[];
 }
 
@@ -369,6 +385,11 @@ export interface Phase3Output {
   buys: BuyOrder[];
   est_proceeds: number | null;
   est_deployment: number | null;
+  // Spec v2.3 parking: what goes into the liquid fund Monday, and what must
+  // come back out of it first to fund the buys.
+  parking_instrument?: string;
+  park_amount?: number | null;
+  redeem_amount?: number | null;
   checklist: string[];
   warnings: string[];
   actions: string[];
@@ -513,6 +534,10 @@ export interface BacktestWeek {
   held: string[];
   equity: number;
   eligible: number;
+  deferred?: string[];      // selected, but not enough cash for a full position
+  unfilled_buys?: string[];
+  unfilled_exits?: string[];
+  blocked_buys?: string[];
 }
 
 export interface BacktestTrade {
@@ -524,6 +549,48 @@ export interface BacktestTrade {
   value: number;
   charges: number;
   reason: string;
+  pnl?: number | null;
+  tax?: number;
+}
+
+// One side of the after-tax comparison: sold in full on the last day.
+export interface TaxSide {
+  exit_tax: number;
+  end_equity_after_exit: number;
+  cagr_after_exit_pct: number;
+}
+
+export interface TaxYear {
+  fy: string;
+  short_term_gain: number;
+  long_term_gain: number;
+  capital_gains_tax: number;
+  cash_income_tax: number;
+}
+
+// `enabled: false` (or an empty object on runs from before v2.3) = pre-tax.
+export interface TaxBlock {
+  enabled?: boolean;
+  total_tax_paid?: number;
+  capital_gains_tax?: number;
+  cash_income_tax?: number;
+  losses_carried_forward?: number;
+  rules?: Record<string, number>;
+  by_year?: TaxYear[];
+  strategy?: TaxSide;
+  benchmark?: TaxSide;
+}
+
+export interface BenchmarkOption {
+  id: string;
+  label: string;
+  source: string;          // "manual" (a downloaded file) | "index"
+  total_return: boolean;
+  note: string;
+  available: boolean;
+  first_session: string | null;
+  last_session: string | null;
+  how_to: string;
 }
 
 export interface BacktestResult {
@@ -531,6 +598,7 @@ export interface BacktestResult {
   config: Record<string, unknown>;
   metrics: BacktestMetrics;
   benchmark: BacktestMetrics;
+  tax?: TaxBlock;
   trade_stats: Record<string, number>;
   turnover: number;
   equity_curve: EquityPoint[];
@@ -576,6 +644,8 @@ export interface BacktestRunRequest {
   alt_asset_id?: string | null;
   alt_allocation_pct?: number;
   cash_yield_pct?: number;
+  benchmark_id?: string | null;
+  apply_tax?: boolean;
   fetch_prices?: boolean;
 }
 

@@ -49,8 +49,12 @@ def _fetch(url: str) -> list[dict]:
     return _rows(r.json())
 
 
-def fetch_surveillance(today: dt.date | None = None) -> dict[str, str]:
-    """Return {SYMBOL: reason}. Cached per day; empty dict if NSE is unreachable."""
+def fetch_surveillance(today: dt.date | None = None) -> dict[str, str] | None:
+    """Return {SYMBOL: reason}, cached per day — or None if NSE is unreachable.
+
+    None and {} mean different things and the caller must not confuse them:
+    {} is "checked, nothing is under surveillance"; None is "could not check".
+    """
     today = today or dt.date.today()
     path = config.SURVEILLANCE_CACHE
     if path.exists():
@@ -75,7 +79,7 @@ def fetch_surveillance(today: dt.date | None = None) -> dict[str, str]:
                 symbols[sym] = f"NSE GSM ({stage})"
     except Exception as exc:  # noqa: BLE001 — unreachable => fall back to manual
         log.info("NSE surveillance lists unavailable (%s)", type(exc).__name__)
-        return {}
+        return None
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"fetched": today.isoformat(), "symbols": symbols}, indent=2),

@@ -55,10 +55,19 @@ class BacktestRunRequest(BaseModel):
     alt_allocation_pct: float = Field(default=100.0, ge=1, le=100)
 
     # A fixed annual yield credited on IDLE cash (not the alt asset). Models a
-    # liquid/overnight fund or a held-to-maturity bond cleanly — no ETF, no
-    # dividend-capture problem, and it covers the full window. 0 = the default
-    # (idle cash earns nothing, matching the live Rulebook).
-    cash_yield_pct: float = Field(default=0.0, ge=0, le=20)
+    # liquid/overnight fund cleanly — no ETF, no dividend-capture problem, and
+    # it covers the full window. The default matches the live rule since Spec
+    # v2.3 (idle cash is parked in a liquid fund); 0 = truly idle cash.
+    cash_yield_pct: float = Field(default=bt_config.CASH_YIELD_PCT, ge=0, le=20)
+
+    # What the run is measured against. None = the regime index (a price index
+    # unless it is an ETF proxy). "midsmall400_tri" is the fair comparison but
+    # needs a downloaded file — see GET /api/backtest/benchmarks.
+    benchmark_id: Optional[str] = None
+
+    # Settle capital-gains tax inside the simulation (today's Indian rates).
+    # Off = a pre-tax run, which overstates what a ~6x-turnover strategy keeps.
+    apply_tax: bool = bt_config.APPLY_TAX
 
     fetch_prices: bool = True     # pull anything missing from yfinance first
 
@@ -91,6 +100,7 @@ class BacktestResult(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
     metrics: dict[str, Any] = Field(default_factory=dict)
     benchmark: dict[str, Any] = Field(default_factory=dict)
+    tax: dict[str, Any] = Field(default_factory=dict)   # {"enabled": False} if pre-tax
     trade_stats: dict[str, Any] = Field(default_factory=dict)
     turnover: float = 0.0
     equity_curve: list[dict[str, Any]] = Field(default_factory=list)
@@ -106,6 +116,20 @@ class AltAssetOption(BaseModel):
     ticker: str
     note: str = ""
     first_session: str = ""
+
+
+class BenchmarkOptionOut(BaseModel):
+    """A selectable benchmark and whether its data is actually on disk."""
+
+    id: str
+    label: str
+    source: str                     # "manual" (a downloaded file) | "index"
+    total_return: bool = False      # dividends included?
+    note: str = ""
+    available: bool = False
+    first_session: Optional[str] = None
+    last_session: Optional[str] = None
+    how_to: str = ""                # for a missing manual file: where to get it
 
 
 class IndexCoverage(BaseModel):

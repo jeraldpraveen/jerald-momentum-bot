@@ -12,6 +12,7 @@ import datetime as dt
 import itertools
 import logging
 import threading
+import time
 
 import numpy as np
 
@@ -75,14 +76,26 @@ def save_record(rec: SweepRecord) -> SweepRecord:
     return rec
 
 
+def _read(path, model):
+    """Read a record the worker may be rewriting at this very moment.
+
+    A live sweep replaces its record every few formulas while the UI polls it.
+    On Windows a read can land in the middle of that replace and fail; one
+    failed read used to be reported as "no such sweep" — a spurious 404 for a
+    sweep that was running normally. So a failure is retried briefly, exactly
+    as `runs.load_run` does for backtests, and only a file that stays missing
+    or unreadable is reported as absent.
+    """
+    for _ in range(runs_repo._RETRIES):
+        try:
+            return model.model_validate_json(path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 — missing, mid-replace, or corrupt
+            time.sleep(runs_repo._BACKOFF)
+    return None
+
+
 def get_sweep(sweep_id: str) -> SweepRecord | None:
-    p = _path(sweep_id)
-    if not p.exists():
-        return None
-    try:
-        return SweepRecord.model_validate_json(p.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        return None
+    return _read(_path(sweep_id), SweepRecord)
 
 
 def list_sweeps(limit: int | None = None) -> list[SweepRecord]:
@@ -98,13 +111,7 @@ def list_sweeps(limit: int | None = None) -> list[SweepRecord]:
 
 
 def get_result(sweep_id: str) -> SweepResult | None:
-    p = _result_path(sweep_id)
-    if not p.exists():
-        return None
-    try:
-        return SweepResult.model_validate_json(p.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        return None
+    return _read(_result_path(sweep_id), SweepResult)
 
 
 def delete_sweep(sweep_id: str) -> bool:
@@ -216,7 +223,8 @@ def _execute(sweep_id: str, body: SweepRunRequest, cancel: threading.Event) -> N
                 noise = NoiseFloor(
                     n=len(a), min_cagr=round(float(a.min()), 2),
                     max_cagr=round(float(a.max()), 2), mean_cagr=round(float(a.mean()), 2),
-                    std_cagr=round(float(a.std(ddof=1)), 2),
+                    # One draw has no spread to measure (the sample std is 0/0).
+                    std_cagr=round(float(a.std(ddof=1)), 2) if len(a) > 1 else 0.0,
                     spread=round(float(a.max() - a.min()), 2))
             _touch(rec, noise=noise)
 
@@ -251,6 +259,17 @@ def _execute(sweep_id: str, body: SweepRunRequest, cancel: threading.Event) -> N
         tr_all = np.array([r.train_cagr for r in rows])
         winner = max(rows, key=lambda r: r.train_cagr)     # chosen on TRAIN only
 
+        # If every formula lands on the same CAGR — a test window that is RED
+        # throughout buys nothing, so they all score zero — the correlation is
+        # 0/0. That NaN used to be written into the record, which then failed to
+        # parse and made the finished sweep disappear. No spread, no relationship.
+        corr = 0.0
+        if len(rows) > 2:
+            with np.errstate(invalid="ignore", divide="ignore"):
+                corr = float(np.corrcoef(tr_all, te_all)[0, 1])
+            if not np.isfinite(corr):
+                corr = 0.0
+
         verdict = SweepVerdict(
             baseline_formula=base,
             baseline_train_cagr=b_tr.cagr_pct, baseline_test_cagr=b_te.cagr_pct,
@@ -262,8 +281,7 @@ def _execute(sweep_id: str, body: SweepRunRequest, cancel: threading.Event) -> N
             pct_beating_baseline_test=round(100 * float((te_all > b_te.cagr_pct).mean()), 1),
             median_test_cagr=round(float(np.median(te_all)), 2),
             best_possible_test_cagr=round(float(te_all.max()), 2),
-            train_test_corr=round(float(np.corrcoef(tr_all, te_all)[0, 1]), 3)
-            if len(rows) > 2 else 0.0,
+            train_test_corr=round(corr, 3),
             formulas_tried=len(rows),
         )
 
